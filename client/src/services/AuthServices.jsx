@@ -70,6 +70,16 @@ const AuthService = {
       console.error('Profile creation failed:', error);
       throw new Error(error.response?.data?.message || 'Profile creation error');
     }
+  },
+
+  updatePassword: async (email, password) => {
+    try {
+      const response = await axios.patch(`${API_URL}/setpassword`, { email, password });
+      return response.data;
+    } catch (error) {
+      console.error('Password update failed:', error);
+      throw new Error(error.response?.data?.message || 'Password update error');
+    }
   }
 };
 

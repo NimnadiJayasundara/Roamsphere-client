@@ -40,7 +40,7 @@ const OTPVerification = () => {
       const otpCode = otp.join("");
       await AuthService.verifyOTP({ email, otp: otpCode });
       setSuccessMessage("OTP verified successfully.");
-      navigate('/users');
+      navigate(`/setpassword?email=${email}`);
     } catch (error) {
       setError(error.response?.data?.message || 'OTP verification failed.');
     }

@@ -1,19 +1,35 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Box, Typography, TextField, Button, Paper, IconButton, InputAdornment } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import MainLogo from "../../assets/MainLogo.jpg";
+import AuthService from '../../services/AuthServices'; // Import AuthService
 
 const SetPassword = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const emailParam = queryParams.get("email");
+    if (emailParam) {
+      setEmail(emailParam);
+    } else {
+      setError("Email not provided.");
+    }
+  }, [location]);
 
   const handleTogglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -23,7 +39,14 @@ const SetPassword = () => {
       return;
     }
     setError("");
-    alert("Password set successfully!");
+
+    try {
+      await AuthService.updatePassword(email, password);
+      setSuccessMessage("Password set successfully!");
+      navigate('/users');
+    } catch (error) {
+      setError(error.message || "Failed to set password.");
+    }
   };
 
   return (
@@ -103,6 +126,7 @@ const SetPassword = () => {
         />
 
         {error && <Typography color="error" sx={{ mt: 1 }}>{error}</Typography>}
+        {successMessage && <Typography color="success" sx={{ mt: 1 }}>{successMessage}</Typography>}
 
         <Button
           variant="contained"
