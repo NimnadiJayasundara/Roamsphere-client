@@ -6,7 +6,8 @@ import Signup from './components/authentication/Signup'
 import OTPVerification from './components/authentication/otpVerification'
 import SetPassword from './components/authentication/SetPassword'
 import Dashboard from './pages/Dashboard'
-import Navbar from './components/common/Navbar'
+import AddVehicle from './pages/AddVehicle'
+import AddDriver from './pages/AddDriver'
 
 function App() {
   return (
@@ -18,7 +19,8 @@ function App() {
         <Route path='/signup' element={<Signup/>}/>
         <Route path='/verifyotp' element={<OTPVerification />} />
         <Route path='/setpassword' element={<SetPassword />} />
-        <Route path='/navbar' element={<Navbar/>} />
+        <Route path='/addvehicle' element={<AddVehicle/>} />
+        <Route path='/adddriver' element={<AddDriver/>} />
       </Routes>
     </div>
   )

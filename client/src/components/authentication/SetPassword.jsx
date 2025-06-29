@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Box, Typography, TextField, Button, Paper, IconButton, InputAdornment } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import MainLogo from "../../assets/MainLogo.jpg";
-import AuthService from '../../services/AuthServices'; // Import AuthService
+import AuthService from '../../services/AuthServices'; 
 
 const SetPassword = () => {
   const [password, setPassword] = useState("");
@@ -41,9 +41,47 @@ const SetPassword = () => {
     setError("");
 
     try {
-      await AuthService.updatePassword(email, password);
-      setSuccessMessage("Password set successfully!");
-      navigate('/users');
+      // Update password
+      const response = await AuthService.updatePassword(email, password);
+
+      const token = response?.token;
+      if (token) {
+        localStorage.setItem('authToken', token);
+
+        // Decode JWT to get role
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const decodedToken = JSON.parse(atob(tokenParts[1]));
+          const userRole = decodedToken.role;
+
+          // Redirect based on role
+          switch (userRole) {
+            case 'super-admin':
+              navigate('/');
+              return;
+            case 'admin':
+              navigate('/users');
+              return;
+            case 'tour-operator':
+              navigate('/tour-operator-dashboard');
+              return;
+            case 'driver':
+              navigate('/driver-dashboard');
+              return;
+            default:
+              setError('Unauthorized role. Access denied.');
+              return;
+          }
+        } else {
+          setError('Invalid authentication token.');
+        }
+      } else {
+        // No token: fallback to login
+        setSuccessMessage("Password set successfully! Please log in.");
+        setTimeout(() => {
+          navigate('/login');
+        }, 1500);
+      }
     } catch (error) {
       setError(error.message || "Failed to set password.");
     }

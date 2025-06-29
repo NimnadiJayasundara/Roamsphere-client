@@ -5,7 +5,7 @@ import AuthService from '../../services/AuthServices';
 import MainLogo from '../../assets/MainLogo.jpg';
 
 const Login = () => {
-  const [formData, setFormData] = useState({ fullName: '', email: '' });
+  const [formData, setFormData] = useState({ fullName: '', email: '', password: '' });	
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -15,8 +15,8 @@ const Login = () => {
   };
 
   const handleSignin = async () => {
-    if (!formData.fullName || !formData.email) {
-      setError('Both fields are required.');
+    if (!formData.fullName || !formData.email || !formData.password) {
+      setError('All fields are required.');
       return;
     }
     setLoading(true);
@@ -27,7 +27,8 @@ const Login = () => {
       
       if (!token) throw new Error('Invalid token received.');
       localStorage.setItem('authToken', token);
-      
+      console.log('JWT Token:', token);
+
       // Decode JWT to get role
       try {
         const tokenParts = token.split('.');
@@ -41,11 +42,13 @@ const Login = () => {
             navigate('/');
             break;
           case 'admin':
-            navigate('/admin-dashboard');
+            navigate('/users');
             break;
           case 'tour-operator':
             navigate('/tour-operator-dashboard');
             break;
+          case 'driver':
+            navigate('/driver-dashboard');
           default:
             setError('Unauthorized role. Access denied.');
         }
@@ -114,6 +117,18 @@ const Login = () => {
           onChange={handleChange}
           value={formData.email}
           placeholder="Enter your Email"
+          sx={{ width: '80%' }}
+        />
+
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Password"
+          name="password"
+          type="password"
+          onChange={handleChange}
+          value={formData.password}
+          placeholder="Enter your Password"
           sx={{ width: '80%' }}
         />
 

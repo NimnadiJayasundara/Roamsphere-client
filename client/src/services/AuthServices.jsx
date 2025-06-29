@@ -7,6 +7,9 @@ const AuthService = {
       console.log('Sending login request with:', data );
       const response = await axios.post(`${API_URL}/login`,  data );
       console.log('Login response:', response.data);
+      if (response.data.token) {
+        console.log('JWT Token:', response.data.token);
+      }
       return response.data;
     } catch (error) {
       console.error('Login failed:', error);
@@ -14,6 +17,7 @@ const AuthService = {
       throw new Error(error.response?.data?.message || 'Login error');
     }
   },
+  
   getUser: async (token) => {
     try {
       const response = await axios.get(`${API_URL}/user`, {
@@ -57,20 +61,23 @@ const AuthService = {
     }
   },
 
-  createProfile: async (newUser) => {
-    try {
-      const response = await axios.post(`${API_URL}/createprofile`, {
-        firstName: newUser.first_name,
-        lastName: newUser.last_name,
-        email: newUser.email,
-        role: newUser.role_name,
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Profile creation failed:', error);
-      throw new Error(error.response?.data?.message || 'Profile creation error');
-    }
-  },
+  createProfile: async (newUser, token) => {
+  try {
+    const response = await axios.post(`${API_URL}/createprofile`, {
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
+      email: newUser.email,
+      role: newUser.role,
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Profile creation failed:', error);
+    throw new Error(error.response?.data?.message || 'Profile creation error');
+  }
+},
 
   updatePassword: async (email, password) => {
     try {
