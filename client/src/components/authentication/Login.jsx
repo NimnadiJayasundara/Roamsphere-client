@@ -48,7 +48,7 @@ const Login = () => {
             navigate('/tour-operator-dashboard');
             break;
           case 'driver':
-            navigate('/driver-dashboard');
+            navigate('/adddriver');
           default:
             setError('Unauthorized role. Access denied.');
         }
