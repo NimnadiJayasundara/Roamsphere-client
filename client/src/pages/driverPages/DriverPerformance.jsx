@@ -1,9 +1,9 @@
 import React from 'react'
 import { Box } from '@mui/material';
-import Navbar from '../../components/common/Navbar';
+import Navbar from '../../components/common/Navbar';    
 import Header from '../../components/common/Header';
 
-function DriverLeaderboard() {
+function DriverPerformance() {
   return (
     <Box display="flex">
       <Navbar />
@@ -14,4 +14,4 @@ function DriverLeaderboard() {
   )
 }
 
-export default DriverLeaderboard
+export default DriverPerformance

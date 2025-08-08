@@ -1,10 +1,16 @@
 import React from 'react'
+import { Box } from '@mui/material';
+import Navbar from '../../components/common/Navbar';
+import Header from '../../components/common/Header';
 
 function DriverDashboard() {
   return (
-    <div>
-      <h1>Driver Dashboard</h1>
-    </div>
+    <Box display="flex">
+      <Navbar />
+      <Box flexGrow={1}>
+        <Header />
+      </Box>
+    </Box>
   )
 }
 

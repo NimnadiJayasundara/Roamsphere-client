@@ -3,16 +3,15 @@ import { Box } from '@mui/material';
 import Navbar from '../../components/common/Navbar';
 import Header from '../../components/common/Header';
 
-function MenuSettings() {
+function DriverProfile() {
   return (
     <Box display="flex">
       <Navbar />
       <Box flexGrow={1}>
         <Header />
-        <h1>Menu Settings</h1>
       </Box>
     </Box>
   )
 }
 
-export default MenuSettings
+export default DriverProfile
