@@ -62,8 +62,8 @@ const Navbar = styled(Drawer, { shouldForwardProp: (prop) => prop !== "open" })(
   })
 );
 
-const SidebarMenu = () => {
-  const [open, setOpen] = useState(true);
+const SidebarMenu = ({ defaultOpen = true }) => {
+  const [open, setOpen] = useState(defaultOpen);
   const [loading, setLoading] = useState(true);
   const [userInfo, setUserInfo] = useState({
     first_name: "",
@@ -152,24 +152,25 @@ const SidebarMenu = () => {
     // Admin/Superadmin menu items
     const adminItems = [
       { text: "Dashboard", icon: <Dashboard />, path: "/users" },
-      { text: "Vehicle List", icon: <DirectionsCar />, path: "/vehiclelist" },
-      { text: "Driver Leaderboard", icon: <EmojiEvents />, path: "/driver-leaderboard" },
-      { text: "Driver List", icon: <Group />, path: "/driver-list" },
       { text: "Add Vehicle", icon: <AddCircle />, path: "/addvehicle" },
-      { text: "Add Driver", icon: <PersonAdd />, path: "/adddriver" },
+      { text: "Vehicle List", icon: <DirectionsCar />, path: "/vehiclelist" },
+      // { text: "Driver Leaderboard", icon: <EmojiEvents />, path: "/driver-leaderboard" },
+      { text: "Driver List", icon: <Group />, path: "/driver-list" },
+
+      // { text: "Add Driver", icon: <PersonAdd />, path: "/adddriver" },
       { text: "Trip Schedule", icon: <Schedule />, path: "/trip-schedule" },
       { text: "Track Location", icon: <LocationOn />, path: "/track-location" },
-      { text: "Reports", icon: <Assessment />, path: "/reports" },
+      // { text: "Reports", icon: <Assessment />, path: "/reports" },
     ];
 
     // Tour Operator menu items
     const tourOperatorItems = [
       { text : "Dashboard", icon: <Dashboard />, path: "/tour-operator-dashboard" },
+      { text: "Trip Schedules", icon: <Schedule />, path: "/trip-schedule" },
       { text: "Vehicle List", icon: <DirectionsCar />, path: "/vehiclelist" },
-      { text: "Driver List", icon: <Group />, path: "/driver-list" },
-      { text: "Trip Schedule", icon: <Schedule />, path: "/trip-schedule" },
+      { text: "Driver List", icon: <Group />, path: "/driver-list" },   
       { text: "Track Location", icon: <LocationOn />, path: "/track-location" },
-      { text: "Reports", icon: <Assessment />, path: "/reports" },
+      // { text: "Reports", icon: <Assessment />, path: "/reports" },
     ];
 
     // Driver menu items
@@ -178,13 +179,13 @@ const SidebarMenu = () => {
       { text: "My Profile", icon: <Person />, path: "/driver-profile" },
       { text: "My Trips", icon: <Schedule />, path: "/my-trips" },
       { text: "Track Location", icon: <LocationOn />, path: "/track-location" },
-      { text: "My Performance", icon: <Assessment />, path: "/my-performance" },
+      // { text: "My Performance", icon: <Assessment />, path: "/my-performance" },
     ];
 
     // User/Customer menu items
     const userItems = [
-      { text: "My Bookings", icon: <Schedule />, path: "/my-bookings" },
-      { text: "Track Trip", icon: <LocationOn />, path: "/track-trip" },
+      { text: "My Bookings", icon: <Schedule />, path: "/customer-dashboard" },
+      { text: "Track Trip", icon: <LocationOn />, path: "/customer-trip-tracker" },
     ];
 
     switch (roleName) {
