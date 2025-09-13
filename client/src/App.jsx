@@ -10,12 +10,16 @@ import AddVehicle from './pages/vehiclePages/AddVehicle'
 import AddDriver from './pages/driverPages/AddDriver'
 
 import VehicleList from './pages/vehiclePages/VehicleList'
+import ViewVehicle from './pages/vehiclePages/ViewVehicle'
 import DriverLeaderboard from './pages/driverPages/DriverLeaderboard'
 import TripSchedule from './pages/tripPages/TripsSchedule'
 import TrackLocation from './pages/tripPages/TrackLocation'
 import MenuSettings from './pages/settingsPages/MenuSettings'
 import TourOperatorDashboard from './pages/Dashboard/TODashboard'
 import DriverDashboard from './pages/driverPages/DriverDashboard'
+import DriverProfile from './pages/driverPages/DriverProfile'
+import DriverPerformance from './pages/driverPages/DriverPerformance'
+import DriverList from './pages/driverPages/DriverList'
 
 function App() {
   return (
@@ -31,12 +35,18 @@ function App() {
         <Route path='/adddriver' element={<AddDriver/>} />
 
         <Route path='/vehiclelist' element={<VehicleList/>} />
+        <Route path='/vehicle/:vehicleId' element={<ViewVehicle/>} />
         <Route path='/driver-leaderboard' element={<DriverLeaderboard/>} />
         <Route path='/trip-schedule' element={<TripSchedule/>} />
         <Route path='/track-location' element={<TrackLocation/>} />
         <Route path='/menu-settings' element={<MenuSettings/>} />
         <Route path='/tour-operator-dashboard' element={<TourOperatorDashboard/>} />
+        
         <Route path='/driver-dashboard' element={<DriverDashboard/>} />
+        <Route path='/driver-list' element={<DriverList />} />
+        <Route path='/driver-profile' element={<DriverProfile />} />
+        <Route path='/my-performance' element={<DriverPerformance />} />
+        <Route path='/my-trips' element={<TripSchedule />} />
       </Routes>
     </div>
   )

@@ -30,7 +30,7 @@ import Header from "../components/common/Header";
 const Dashboard = () => {
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
-  const [successOpen, setSuccessOpen] = useState(false); // NEW
+  const [successOpen, setSuccessOpen] = useState(false); 
   const [newUser, setNewUser] = useState({
     firstName: "",
     lastName: "",
