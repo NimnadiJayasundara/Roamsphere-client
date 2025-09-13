@@ -1,5 +1,6 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
+import './assets/styles/leaflet-custom.css'
 import Home from './pages/Home'
 import Login from './components/authentication/Login'
 import Signup from './components/authentication/Signup'
@@ -12,14 +13,23 @@ import AddDriver from './pages/driverPages/AddDriver'
 import VehicleList from './pages/vehiclePages/VehicleList'
 import ViewVehicle from './pages/vehiclePages/ViewVehicle'
 import DriverLeaderboard from './pages/driverPages/DriverLeaderboard'
-import TripSchedule from './pages/tripPages/TripsSchedule'
-import TrackLocation from './pages/tripPages/TrackLocation'
+import TripSchedule from './pages/tripPages/TripSchedule'
+import TripScheduler from './pages/tripPages/TripScheduler'
+import TrackLocation from './pages/tripPages/TripTracker'
 import MenuSettings from './pages/settingsPages/MenuSettings'
 import TourOperatorDashboard from './pages/Dashboard/TODashboard'
 import DriverDashboard from './pages/driverPages/DriverDashboard'
 import DriverProfile from './pages/driverPages/DriverProfile'
 import DriverPerformance from './pages/driverPages/DriverPerformance'
 import DriverList from './pages/driverPages/DriverList'
+import TripRequest from './pages/customerPages/TripRequest'
+
+import CustomerDashboard from './pages/customerPages/CustomerDashboard'
+import CustomerRegistration from './pages/customerPages/CustomerRegistration'
+import CustomerLogin from './pages/customerPages/CustomerLogin'
+import CustomerTripTracker from './pages/customerPages/CustomerTripTracker'
+import LocationPicker from './components/location/LocationPicker'
+import AvailableVehicles from './pages/customerPages/AvailableVehicle'
 
 function App() {
   return (
@@ -38,7 +48,8 @@ function App() {
         <Route path='/vehicle/:vehicleId' element={<ViewVehicle/>} />
         <Route path='/driver-leaderboard' element={<DriverLeaderboard/>} />
         <Route path='/trip-schedule' element={<TripSchedule/>} />
-        <Route path='/track-location' element={<TrackLocation/>} />
+        <Route path='/trip-scheduler' element={<TripScheduler />} />
+        <Route path='/track-location' element={<TrackLocation />} />
         <Route path='/menu-settings' element={<MenuSettings/>} />
         <Route path='/tour-operator-dashboard' element={<TourOperatorDashboard/>} />
         
@@ -47,6 +58,16 @@ function App() {
         <Route path='/driver-profile' element={<DriverProfile />} />
         <Route path='/my-performance' element={<DriverPerformance />} />
         <Route path='/my-trips' element={<TripSchedule />} />
+
+        <Route path='/request-trip' element={<TripRequest />} />
+
+        <Route path='/customer-dashboard' element={<CustomerDashboard />} />
+        <Route path='/customer-register' element={<CustomerRegistration />} />
+        <Route path='/customer-login' element={<CustomerLogin />} />
+        <Route path='/select-location' element={<LocationPicker />} />
+        <Route path='/available-vehicles' element={<AvailableVehicles />} />
+        <Route path='/customer-trip-tracker' element={<CustomerTripTracker />} />
+
       </Routes>
     </div>
   )

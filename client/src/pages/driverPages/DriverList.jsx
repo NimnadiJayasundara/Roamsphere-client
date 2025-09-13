@@ -166,7 +166,7 @@ function DriverList() {
               issuing_date: 'N/A',
               expiry_date: 'N/A',
               join_date: user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A',
-              availability: 'Unavailable',
+              availability: 'Available',
               last_trip: { destination: 'No trips yet', date: 'N/A', duration: 'N/A' },
               total_trips: 0,
               rating: 0,
@@ -206,7 +206,7 @@ function DriverList() {
     }
 
     setFilteredDrivers(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1); 
   };
 
   // Clear all filters
@@ -254,12 +254,8 @@ function DriverList() {
 
   const getRandomLastTrip = () => {
     const destinations = [
-      'New York to Boston',
-      'Los Angeles to San Francisco',
-      'Chicago to Detroit',
-      'Miami to Orlando',
-      'Seattle to Portland',
-      'Phoenix to Las Vegas'
+      'Colombo to Galle',
+      'Bandarwela to Matara',
     ];
     const destination = destinations[Math.floor(Math.random() * destinations.length)];
     const date = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toLocaleDateString();

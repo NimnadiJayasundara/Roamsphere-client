@@ -17,10 +17,7 @@ import {
   TableRow,
   Paper,
   CircularProgress,
-  IconButton,
-  Avatar,
 } from "@mui/material";
-import { Edit, Delete } from "@mui/icons-material";
 
 import UserService from "../services/UserService";
 import AuthService from "../services/AuthServices";
@@ -32,10 +29,10 @@ const Dashboard = () => {
   const [open, setOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false); 
   const [newUser, setNewUser] = useState({
-    firstName: "",
-    lastName: "",
+    first_name: "",
+    last_name: "",
     email: "",
-    role: "",
+    role_name: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,7 +65,7 @@ const Dashboard = () => {
 
   const handleClose = () => {
     setOpen(false);
-    setNewUser({ firstName: "", lastName: "", email: "", role: "" });
+    setNewUser({ first_name: "", last_name: "", email: "", role_name: "" });
   };
 
   const handleChange = (e) => {
@@ -91,7 +88,7 @@ const Dashboard = () => {
     setError("");
     setMessage("");
 
-    if (!newUser.firstName || !newUser.lastName || !newUser.email || !newUser.role) {
+    if (!newUser.first_name || !newUser.last_name || !newUser.email || !newUser.role_name) {
       setError("All fields are required.");
       setLoading(false);
       return;
@@ -109,32 +106,31 @@ const Dashboard = () => {
 
       const response = await AuthService.createProfile(
         {
-          firstName: newUser.firstName,
-          lastName: newUser.lastName,
+          firstName: newUser.first_name,
+          lastName: newUser.last_name,
           email: newUser.email,
-          role: newUser.role,
+          role: newUser.role_name,
         },
         token
       );
 
-     try {
-    await AuthService.sendInvitationEmail(
-      newUser.email,
-      `Your temporary password is: ${tempPassword}`
-    );
-    } catch (emailError) {
-      console.warn("Email sending failed:", emailError.message);
-      // Optional: show a separate message if email fails
-    }
-        setUsers([...users, { ...newUser, id: users.length + 1 }]);
-        handleClose();
-        setSuccessOpen(true); // open success dialog
-      } catch (err) {
-        setError(err.response?.data?.message || "Error creating user.");
-      } finally {
-        setLoading(false);
+      try {
+        await AuthService.sendInvitationEmail(
+          newUser.email,
+          `Your temporary password is: ${tempPassword}`
+        );
+      } catch (emailError) {
+        console.warn("Email sending failed:", emailError.message);
       }
-    };
+      setUsers([...users, { ...newUser, id: users.length + 1 }]);
+      handleClose();
+      setSuccessOpen(true);
+    } catch (err) {
+      setError(err.response?.data?.message || "Error creating user.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Box display="flex">
@@ -168,15 +164,15 @@ const Dashboard = () => {
                 name="firstName"
                 fullWidth
                 margin="normal"
-                value={newUser.firstName}
+                value={newUser.first_name}
                 onChange={handleChange}
               />
               <TextField
                 label="Last Name"
-                name="lastName"
+                name="last_name"
                 fullWidth
                 margin="normal"
-                value={newUser.lastName}
+                value={newUser.last_name}
                 onChange={handleChange}
               />
               <TextField
@@ -193,7 +189,7 @@ const Dashboard = () => {
                 name="role"
                 fullWidth
                 margin="normal"
-                value={newUser.role}
+                value={newUser.role_name}
                 onChange={handleChange}
                 SelectProps={{ native: true }}
               >
@@ -268,27 +264,19 @@ const Dashboard = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>User Name</TableCell>
+                    <TableCell>Full Name</TableCell>
                     <TableCell>Email</TableCell>
                     <TableCell>Role</TableCell>
-                    <TableCell>Edit or Remove</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {users.map((user, index) => (
                     <TableRow key={index}>
                       <TableCell>
-                        <Box display="flex" alignItems="center">
-                          <Avatar sx={{ mr: 1 }} />
-                          {user.firstName} {user.lastName}
-                        </Box>
+                        {user.first_name} {user.last_name}
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.role}</TableCell>
-                      <TableCell>
-                        <IconButton><Edit /></IconButton>
-                        <IconButton><Delete /></IconButton>
-                      </TableCell>
+                      <TableCell>{user.role_name}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

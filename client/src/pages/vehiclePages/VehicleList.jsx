@@ -200,6 +200,24 @@ function VehicleList() {
     setFilteredVehicles(filtered);
   };
 
+  const handleAvailabilityChange = (vehicleId, newStatus) => {
+  setVehicles(prev =>
+    prev.map(v =>
+      v.vehicle_id === vehicleId ? { ...v, availability: newStatus } : v
+    )
+    );
+  };
+
+  const handleUpdateAvailability = async (vehicleId, newStatus) => {
+    try {
+      await UserService.updateVehicleAvailability(vehicleId, newStatus);
+      setError('');
+      // Optionally, refetch vehicles or show a success message
+    } catch (err) {
+      setError('Failed to update vehicle status.');
+    }
+  };
+
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
   };
@@ -456,6 +474,27 @@ function VehicleList() {
                         fontWeight: 'bold'
                       }}
                     />
+                    <FormControl size="small" sx={{ minWidth: 160, ml: 2 }}>
+                    <InputLabel>Availability</InputLabel>
+                    <Select
+                      value={vehicle.availability}
+                      label="Availability"
+                      onChange={e => handleAvailabilityChange(vehicle.vehicle_id, e.target.value)}
+                    >
+                      <MenuItem value="Available">Available</MenuItem>
+                      <MenuItem value="Unavailable">Unavailable</MenuItem>
+                      <MenuItem value="Maintenance">Maintenance</MenuItem>
+                      <MenuItem value="Booked">Booked</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    sx={{ ml: 2, bgcolor: '#FDCB42', color: 'black' }}
+                    onClick={() => handleUpdateAvailability(vehicle.vehicle_id, vehicle.availability)}
+                  >
+                    Update Status
+                  </Button>
                   </Box>
 
                   {/* Main Content Area */}
@@ -496,7 +535,7 @@ function VehicleList() {
                     </Box>
 
                     {/* Driver Information Column */}
-                    <Box sx={{ flex: 1 }}>
+                    {/* <Box sx={{ flex: 1 }}>
                       <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
                         Driver Information
                       </Typography>
@@ -531,7 +570,7 @@ function VehicleList() {
                           {vehicle.registration_province || 'N/A'}
                         </Typography>
                       </Box>
-                    </Box>
+                    </Box> */}
 
                     {/* Action Column */}
                     <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minWidth: 120 }}>

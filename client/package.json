@@ -12,13 +12,19 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@googlemaps/google-maps-services-js": "^3.4.2",
     "@mui/icons-material": "^6.4.4",
     "@mui/material": "^6.5.0",
-    "axios": "^1.7.9",
+    "@mui/x-date-pickers": "^8.10.0",
+    "axios": "^1.11.0",
+    "date-fns": "^4.1.0",
     "firebase": "^11.9.1",
     "jwt-decode": "^4.0.0",
+    "leaflet": "^1.9.4",
+    "leaflet-routing-machine": "^3.2.12",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.1.5"
   },
   "devDependencies": {
