@@ -775,6 +775,7 @@ import {
   PersonAdd
 } from '@mui/icons-material';
 import UserService from '../../services/UserService';
+import TripServices from '../../services/TripServices';
 
 const TripScheduler = ({
   open,
@@ -797,6 +798,7 @@ const TripScheduler = ({
   const [loading, setLoading] = useState(false);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [success, setSuccess] = useState('');
   const [distance, setDistance] = useState(0);
 
   useEffect(() => {
@@ -851,83 +853,67 @@ const TripScheduler = ({
     try {
       setResourcesLoading(true);
 
-      // Fetch drivers
-      const usersResponse = await UserService.getAllUsers().catch(() => []);
-      let driversData = [];
-      if (usersResponse && Array.isArray(usersResponse)) {
-        const driverUsers = usersResponse.filter(
-          user => user.role_name === 'driver' && user.status !== 'inactive'
-        );
+      // Fetch assignment options using the enhanced API
+      const response = await TripServices.getAssignmentOptions(requestData.trip_id, {
+        vehicleType: requestData.vehicle_type,
+        minSeatingCapacity: requestData.passenger_count
+      });
 
-        const driversWithProfiles = await Promise.all(
-          driverUsers.map(async (user) => {
-            try {
-              const driverProfile = await UserService.getDriverProfileByEmail(user.email);
-              return {
-                user_id: user.id,
-                driver_id: user.id,
-                name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown Driver',
-                email: user.email,
-                profile_image: driverProfile?.image_url || user.image_url || '',
-                phone: driverProfile?.mobile || 'N/A',
-                license_type: driverProfile?.license_type || 'Standard License',
-                experience_years: driverProfile?.experience_years || 0,
-                rating: parseFloat((Math.random() * 2 + 3).toFixed(1)),
-                availability: driverProfile?.availability || 'Available'
-              };
-            } catch {
-              return {
-                user_id: user.id,
-                driver_id: user.id,
-                name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown Driver',
-                email: user.email,
-                profile_image: user.image_url || '',
-                phone: 'Profile not created',
-                license_type: 'N/A',
-                experience_years: 0,
-                rating: 0,
-                availability: 'Available'
-              };
-            }
-          })
-        );
-
-        driversData = driversWithProfiles.filter(
-          driver => driver.availability?.toLowerCase() === 'available'
-        );
-      }
-
-      // // Fetch vehicles from DB
-      // const vehiclesResponse = await UserService.getAllVehicles().catch(() => []);
-      // let vehiclesData = [];
-      // if (vehiclesResponse && Array.isArray(vehiclesResponse)) {
-      //   vehiclesData = vehiclesResponse
-      //     .filter(vehicle =>
-      //       vehicle.seating_capacity >= (requestData?.passenger_count || 1)
-      //     );
-      // }
-
-       let vehiclesData = DUMMY_VEHICLES.filter(
-      vehicle => vehicle.seating_capacity >= (requestData?.passenger_count || 1)
-    );
-
-      setAvailableDrivers(driversData);
-      setAvailableVehicles(vehiclesData);
-
-      if (driversData.length === 0) {
-        setErrors(prev => ({
-          ...prev,
-          drivers: `No drivers available at the moment.`
+      if (response.success) {
+        const { drivers, vehicles } = response.data;
+        
+        // Format drivers data
+        const driversData = drivers.map(driver => ({
+          user_id: driver.driver_id,
+          driver_id: driver.driver_id,
+          name: `${driver.first_name || ''} ${driver.last_name || ''}`.trim() || 'Unknown Driver',
+          email: driver.email || '',
+          profile_image: driver.profile_image || '',
+          phone: driver.mobile || 'N/A',
+          license_type: driver.license_type || 'Standard License',
+          experience_years: driver.experience_years || 0,
+          rating: driver.average_rating || 0,
+          availability: driver.availability_status || 'available',
+          current_latitude: driver.current_latitude,
+          current_longitude: driver.current_longitude,
+          is_online: driver.is_online || false
         }));
-      }
 
-      if (vehiclesData.length === 1) {
-        setErrors(prev => ({
-          ...prev,
-          vehicles: `.`
+        // Format vehicles data
+        const vehiclesData = vehicles.map(vehicle => ({
+          vehicle_id: vehicle.vehicle_id,
+          vehicle_type: vehicle.vehicle_type,
+          model: vehicle.model,
+          year: vehicle.year,
+          seating_capacity: vehicle.seating_capacity,
+          color: vehicle.color,
+          license_plate: vehicle.license_plate,
+          category: vehicle.category || 'Standard',
+          availability: vehicle.availability_status || 'available',
+          image_url: vehicle.image_url || ''
         }));
+
+        setAvailableDrivers(driversData);
+        setAvailableVehicles(vehiclesData);
+
+        if (driversData.length === 0) {
+          setErrors(prev => ({
+            ...prev,
+            drivers: 'No drivers available at the moment.'
+          }));
+        }
+
+        if (vehiclesData.length === 0) {
+          setErrors(prev => ({
+            ...prev,
+            vehicles: 'No vehicles available for this trip.'
+          }));
+        }
+      } else {
+        throw new Error(response.message || 'Failed to fetch assignment options');
       }
     } catch (error) {
+      console.error('Error fetching resources:', error);
       setErrors(prev => ({
         ...prev,
         fetch: 'Failed to load available drivers and vehicles. Please try again.'
@@ -1008,18 +994,32 @@ const TripScheduler = ({
     if (!validateForm()) return;
     try {
       setLoading(true);
-      const tripToSave = {
-        ...requestData,
-        assigned_driver_id: assignmentData.driverId,
-        assigned_vehicle_id: assignmentData.vehicleId,
-        estimated_cost: assignmentData.estimatedCost,
-        estimated_distance_km: distance,
-        status: 'confirmed'
+      
+      // Use the enhanced assignment API
+      const assignmentPayload = {
+        driverId: assignmentData.driverId,
+        vehicleId: assignmentData.vehicleId,
+        estimatedCost: parseFloat(assignmentData.estimatedCost),
+        estimatedDuration: Math.ceil(distance / 50) * 60, // Estimate duration in minutes
+        notes: `Trip assigned via TripScheduler - ${requestData.category} trip`
       };
-      await onSave(tripToSave);
-      onClose();
+
+      const response = await TripServices.assignTripToDriverEnhanced(
+        requestData.trip_id, 
+        assignmentPayload
+      );
+
+      if (response.success) {
+        setSuccess('Trip assigned successfully!');
+        // Call the parent onSave callback with the response data
+        await onSave(response.data);
+        onClose();
+      } else {
+        throw new Error(response.message || 'Failed to assign trip');
+      }
     } catch (error) {
-      setErrors({ submit: 'Failed to assign trip. Please try again.' });
+      console.error('Assignment error:', error);
+      setErrors({ submit: error.message || 'Failed to assign trip. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -1094,6 +1094,11 @@ const TripScheduler = ({
       </DialogTitle>
 
       <DialogContent sx={{ p: isMobile ? 2 : 3 }}>
+        {success && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            {success}
+          </Alert>
+        )}
         {errors.submit && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {errors.submit}
@@ -1231,11 +1236,16 @@ const TripScheduler = ({
               <Grid item xs={12}>
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
                   <DirectionsCar sx={{ mr: 1, color: '#FDCB42' }} />
-                  Select Vehicle ({DUMMY_VEHICLES.length} available)
+                  Select Vehicle ({availableVehicles.length} available)
                 </Typography>
-                {DUMMY_VEHICLES.length === 0 ? (
+                {errors.vehicles && (
                   <Alert severity="warning" sx={{ mb: 2 }}>
-                    No vehicles available.
+                    {errors.vehicles}
+                  </Alert>
+                )}
+                {availableVehicles.length === 0 ? (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    No vehicles available for this trip.
                   </Alert>
                 ) : (
                   <FormControl fullWidth error={!!errors.vehicleId}>
@@ -1248,7 +1258,7 @@ const TripScheduler = ({
                       <MenuItem value="">
                         <em>Select a vehicle</em>
                       </MenuItem>
-                      {DUMMY_VEHICLES.map((vehicle, index) => (
+                      {availableVehicles.map((vehicle, index) => (
                         <MenuItem
                           key={vehicle.vehicle_id}
                           value={vehicle.vehicle_id}

@@ -72,6 +72,15 @@ function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [autoSendLocation, setAutoSendLocation] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showTrail, setShowTrail] = useState(true);
+  const [trackingStatus, setTrackingStatus] = useState('ready'); // ready, starting, active, stopping
+  
+  // Popular Sri Lankan destinations
+  const popularDestinations = [
+    'Colombo', 'Kandy', 'Galle', 'Negombo', 'Jaffna', 
+    'Anuradhapura', 'Polonnaruwa', 'Trincomalee', 'Batticaloa',
+    'Ratnapura', 'Kurunegala', 'Matara', 'Hambantota'
+  ];
 
   useEffect(() => {
     initializeComponent();
@@ -114,8 +123,7 @@ function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
 
   const getCurrentLocation = async () => {
     try {
-      // const location = await LeafletLocationService.getCurrentLocation();
-      const location = { lat: 6.8370, lng: 80.9999 };
+      const location = await LeafletLocationService.getCurrentLocation();
       setCurrentLocation(location);
       LeafletLocationService.updateCurrentLocationMarker(location);
       
@@ -124,12 +132,12 @@ function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
       console.log('Current address:', address.address);
       
       // Send initial location to server if auto-send is enabled
-      // if (autoSendLocation && currentDriverId) {
-      //   await sendLocationToServer(currentDriverId, location, tripId);
-      // }
+      if (autoSendLocation && currentDriverId) {
+        await sendLocationToServer(currentDriverId, location, tripId);
+      }
     } catch (err) {
       console.error('Location error:', err);
-      
+      setError('Unable to get current location. Please check location permissions.');
     }
   };
 
@@ -151,18 +159,29 @@ function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
   };
 
 const handleDestinationSubmit = async () => {
+  if (!destination.trim()) {
+    setError('Please enter a destination');
+    return;
+  }
+
   try {
     setLoading(true);
     setError('');
     setSuccess('');
 
-    const destLocation = { lat: 6.9810, lng: 81.0570 };
+    // Geocode the destination address
+    const geocodedResult = await LeafletLocationService.geocode(destination);
+    const destLocation = {
+      lat: geocodedResult.lat,
+      lng: geocodedResult.lng
+    };
+    
     setDestinationCoords(destLocation);
     
-    // Add destination marker
-    LeafletLocationService.addDestinationMarker(destLocation, 'Badulla');
+    // Add destination marker with the actual address
+    LeafletLocationService.addDestinationMarker(destLocation, geocodedResult.address);
 
-if (currentLocation) {
+    if (currentLocation) {
       const route = await LeafletLocationService.calculateRoute(
         currentLocation,
         destLocation,
@@ -172,14 +191,23 @@ if (currentLocation) {
       if (route && route.coordinates?.length > 0) {
         setRouteInfo(route);
         LeafletLocationService.drawRoute(route.coordinates);
-        setSuccess('Route from Bandarawela → Badulla displayed!');
+        
+        // Get current location address for display
+        const currentAddress = await LeafletLocationService.reverseGeocode(
+          currentLocation.lat,
+          currentLocation.lng
+        );
+        
+        setSuccess(`Route from ${currentAddress.address} → ${geocodedResult.address} displayed!`);
       } else {
-        throw new Error('No route found');
+        throw new Error('No route found between current location and destination');
       }
+    } else {
+      setSuccess(`Destination set: ${geocodedResult.address}`);
     }
   } catch (err) {
     console.error('Destination error:', err);
-  
+    setError(err.message || 'Failed to find destination. Please try a different address.');
   } finally {
     setLoading(false);
   }
@@ -196,6 +224,7 @@ if (currentLocation) {
 
     try {
       setLoading(true);
+      setTrackingStatus('starting');
       setIsTracking(true);
 
       const startTime = new Date();
@@ -204,7 +233,12 @@ if (currentLocation) {
         startTime: startTime
       }));
 
-      //  Calculate and draw route when trip starts
+      // Clear previous trail if not showing
+      if (!showTrail) {
+        LeafletLocationService.clearVehicleTrail();
+      }
+
+      // Calculate and draw route when trip starts
       const route = await LeafletLocationService.calculateRoute(
         currentLocation,
         destinationCoords,
@@ -218,7 +252,7 @@ if (currentLocation) {
         console.warn('No route found between start and destination');
       }
 
-      //  Server trip start logic
+      // Server trip start logic
       if (tripId) {
         const startAddress = await LeafletLocationService.reverseGeocode(
           currentLocation.lat,
@@ -233,32 +267,43 @@ if (currentLocation) {
         });
       }
 
-      // Start location tracking
-      LeafletLocationService.startLocationTracking(async (location) => {
-        setCurrentLocation(location);
-        updateTripStats(location);
-
-        // Send location to server
-        if (autoSendLocation) {
-          await sendLocationToServer(currentDriverId, location, tripId);
+      // Start real-time location tracking
+      LeafletLocationService.startLocationTracking(async (location, error) => {
+        if (error) {
+          console.error('Location tracking error:', error);
+          setError('Location tracking failed. Please check permissions.');
+          return;
         }
 
-        // Notify parent component
-        if (onLocationUpdate) {
-          onLocationUpdate({
-            tripId,
-            location,
-            timestamp: new Date().toISOString(),
-            driverId: currentDriverId
-          });
+        if (location) {
+          setCurrentLocation(location);
+          updateTripStats(location);
+
+          // Send location to server
+          if (autoSendLocation) {
+            await sendLocationToServer(currentDriverId, location, tripId);
+          }
+
+          // Notify parent component
+          if (onLocationUpdate) {
+            onLocationUpdate({
+              tripId,
+              location,
+              timestamp: new Date().toISOString(),
+              driverId: currentDriverId
+            });
+          }
         }
       });
 
-      setSuccess('Trip tracking started successfully!');
+      setTrackingStatus('active');
+      setSuccess('Real-time tracking started successfully!');
       setError('');
     } catch (err) {
       console.error('Tracking start error:', err);
       setIsTracking(false);
+      setTrackingStatus('ready');
+      setError('Failed to start tracking. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -268,6 +313,7 @@ if (currentLocation) {
   const stopTracking = async () => {
     try {
       setLoading(true);
+      setTrackingStatus('stopping');
       setIsTracking(false);
       LeafletLocationService.stopLocationTracking();
       
@@ -297,13 +343,31 @@ if (currentLocation) {
         duration: duration
       }));
 
+      setTrackingStatus('ready');
       setSuccess('Trip completed successfully!');
     } catch (err) {
       console.error('Error stopping trip:', err);
       setError('Error stopping trip tracking');
+      setTrackingStatus('ready');
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleTrail = () => {
+    setShowTrail(!showTrail);
+    if (!showTrail) {
+      // Trail is being enabled, but we need to clear it first to start fresh
+      LeafletLocationService.clearVehicleTrail();
+    } else {
+      // Trail is being disabled, clear existing trail
+      LeafletLocationService.clearVehicleTrail();
+    }
+  };
+
+  const handleQuickDestination = async (dest) => {
+    setDestination(dest);
+    await handleDestinationSubmit();
   };
 
   const updateTripStats = (location) => {
@@ -352,7 +416,7 @@ if (currentLocation) {
     try {
       const location = await LeafletLocationService.getCurrentLocation();
       setCurrentLocation(location);
-      LeafletLocationService.updateCurrentLocationMarker(location);
+      LeafletLocationService.updateCurrentLocationMarker(location, false);
     } catch (err) {
       setError('Unable to get current location');
     }
@@ -445,6 +509,19 @@ if (currentLocation) {
           <Fab
             size="small"
             sx={{
+              bgcolor: showTrail ? '#4CAF50' : 'white',
+              color: showTrail ? 'white' : 'black',
+              '&:hover': { bgcolor: showTrail ? '#45a049' : '#f5f5f5' }
+            }}
+            onClick={toggleTrail}
+            title={showTrail ? 'Hide vehicle trail' : 'Show vehicle trail'}
+          >
+            <Route />
+          </Fab>
+          
+          <Fab
+            size="small"
+            sx={{
               bgcolor: 'white',
               color: 'black',
               '&:hover': { bgcolor: '#f5f5f5' }
@@ -474,21 +551,36 @@ if (currentLocation) {
             top: 16,
             left: 16,
             p: 2,
-            minWidth: 200,
-            bgcolor: 'rgba(255, 255, 255, 0.95)'
+            minWidth: 220,
+            bgcolor: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)'
           }}>
-            <Typography variant="h6" sx={{ color: '#FDCB42', mb: 1 }}>
-              Trip in Progress
+            <Typography variant="h6" sx={{ color: '#FDCB42', mb: 1, display: 'flex', alignItems: 'center' }}>
+              <Box sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                bgcolor: trackingStatus === 'active' ? '#4CAF50' : '#FF9800',
+                mr: 1,
+                animation: trackingStatus === 'active' ? 'pulse 2s infinite' : 'none'
+              }} />
+              Real-time Tracking
             </Typography>
-            <Typography variant="body2">
+            <Typography variant="body2" sx={{ mb: 0.5 }}>
+              <Speed sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
               Speed: {Math.round(tripStats.speed)} km/h
             </Typography>
-            <Typography variant="body2">
-              Distance to destination: {tripStats.distance.toFixed(1)} km
+            <Typography variant="body2" sx={{ mb: 0.5 }}>
+              <LocationOn sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
+              Distance: {tripStats.distance.toFixed(1)} km
             </Typography>
-            <Typography variant="body2">
+            <Typography variant="body2" sx={{ mb: 0.5 }}>
+              <Timer sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'middle' }} />
               Duration: {tripStats.startTime ? 
                 formatDuration((new Date() - tripStats.startTime) / 1000 / 60) : '0m'}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+              Trail: {showTrail ? 'ON' : 'OFF'}
             </Typography>
           </Paper>
         )}
@@ -520,6 +612,7 @@ if (currentLocation) {
               <TextField
                 fullWidth
                 label="Enter Destination"
+                placeholder="e.g., Colombo, Kandy, Galle, Negombo..."
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
                 disabled={isTracking}
@@ -528,6 +621,7 @@ if (currentLocation) {
                   startAdornment: <LocationOn sx={{ mr: 1, color: '#FDCB42' }} />
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && handleDestinationSubmit()}
+                helperText="Enter a city, town, or specific address in Sri Lanka"
               />
               <Button
                 variant="contained"
@@ -542,6 +636,31 @@ if (currentLocation) {
               >
                 {loading ? <CircularProgress size={20} /> : 'Set'}
               </Button>
+            </Box>
+          </Grid>
+
+          {/* Quick Destination Buttons */}
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
+              Quick Select:
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {popularDestinations.map((dest) => (
+                <Chip
+                  key={dest}
+                  label={dest}
+                  onClick={() => handleQuickDestination(dest)}
+                  disabled={isTracking || loading}
+                  size="small"
+                  sx={{
+                    cursor: 'pointer',
+                    '&:hover': {
+                      bgcolor: '#FDCB42',
+                      color: 'black'
+                    }
+                  }}
+                />
+              ))}
             </Box>
           </Grid>
 
@@ -615,7 +734,7 @@ if (currentLocation) {
                     '&:hover': { bgcolor: '#45a049' }
                   }}
                 >
-                  Start Trip
+                  {trackingStatus === 'starting' ? 'Starting...' : 'Start Real-time Tracking'}
                 </Button>
               ) : (
                 <Button
@@ -629,7 +748,7 @@ if (currentLocation) {
                     '&:hover': { bgcolor: '#da190b' }
                   }}
                 >
-                  {loading ? 'Stopping...' : 'Stop Trip'}
+                  {trackingStatus === 'stopping' ? 'Stopping...' : 'Stop Tracking'}
                 </Button>
               )}
               
@@ -690,6 +809,17 @@ if (currentLocation) {
                 />
               }
               label="Auto-send location to server"
+            />
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={showTrail}
+                  onChange={(e) => setShowTrail(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="Show vehicle trail"
             />
             
             <Divider sx={{ my: 2 }} />
