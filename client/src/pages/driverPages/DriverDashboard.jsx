@@ -69,7 +69,7 @@ const DriverDashboard = () => {
   // State management
   const [loading, setLoading] = useState(true);
   const [driver, setDriver] = useState(null);
-  const [currentStatus, setCurrentStatus] = useState('offline');
+  const [currentStatus, setCurrentStatus] = useState('available');
   const [statusChanging, setStatusChanging] = useState(false);
   const [currentTrip, setCurrentTrip] = useState(null);
   const [assignedTrips, setAssignedTrips] = useState([]);
@@ -81,7 +81,7 @@ const DriverDashboard = () => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [preferencesDialogOpen, setPreferencesDialogOpen] = useState(false);
-  const [preferredTripTypes, setPreferredTripTypes] = useState(['Casual']);
+  const [preferredTripTypes, setPreferredTripTypes] = useState(['Luxury']);
 
   const statusOptions = [
     { 
@@ -157,7 +157,7 @@ const DriverDashboard = () => {
     
     // Set up real-time updates
     const interval = setInterval(() => {
-      if (currentStatus !== 'offline') {
+      if (currentStatus !== 'available') {
         refreshDashboardData();
       }
     }, 30000);
@@ -212,7 +212,21 @@ const DriverDashboard = () => {
 
       setDriver(profileResponse);
       setCurrentDriverId(profileResponse.driver_id); // Store driver ID
-      setCurrentStatus(profileResponse.availability || 'offline');
+      // Set status to available by default, but allow other statuses to persist
+      const defaultStatus = profileResponse.availability || 'available';
+      setCurrentStatus(defaultStatus);
+      
+      // If the driver was offline, automatically set them to available
+      if (profileResponse.availability === 'offline') {
+        try {
+          await DriverServices.updateDriverAvailability(currentUserEmail, 'available');
+          setCurrentStatus('available');
+        } catch (error) {
+          console.error('Error updating driver status to available:', error);
+          // Continue with available status even if API call fails
+          setCurrentStatus('available');
+        }
+      }
       
       // Set preferred trip types from profile
       if (profileResponse.preferred_trip_types) {
@@ -220,10 +234,10 @@ const DriverDashboard = () => {
           const types = typeof profileResponse.preferred_trip_types === 'string' 
             ? JSON.parse(profileResponse.preferred_trip_types)
             : profileResponse.preferred_trip_types;
-          setPreferredTripTypes(Array.isArray(types) ? types : ['Casual']);
+          setPreferredTripTypes(Array.isArray(types) ? types : ['Luxury']);
         } catch (error) {
           console.error('Error parsing preferred trip types:', error);
-          setPreferredTripTypes(['Casual']);
+          setPreferredTripTypes(['Luxury']);
         }
       }
 
@@ -314,7 +328,7 @@ const DriverDashboard = () => {
       setSuccess(`Status updated to ${statusOptions.find(s => s.value === newStatus)?.label}`);
       
       // Handle location tracking
-      if (newStatus === 'offline') {
+      if (newStatus === 'available') {
         setLocationTracking(false);
         stopLocationTracking();
       } else if (newStatus === 'available') {
@@ -330,7 +344,7 @@ const DriverDashboard = () => {
       console.error('Error updating status:', error);
       setError('Failed to update status. Please try again.');
       // Revert status if there was an error
-      setCurrentStatus(driver?.availability || 'offline');
+      setCurrentStatus(driver?.availability || 'available');
     } finally {
       setStatusChanging(false);
     }
@@ -702,7 +716,11 @@ const DriverDashboard = () => {
               onViewDetails={() => {}}
               onEdit={() => {}}
               onDelete={() => {}}
-              onStart={() => navigate('/track-location')}
+              onStart={() => {
+                // Store trip data in localStorage for the TripTracker to access
+                localStorage.setItem('currentTripData', JSON.stringify(trip));
+                navigate('/track-location');
+              }}
               onComplete={(id) => handleTripAction(id, 'complete')}
               isMobile={isMobile}
               horizontal={true}
@@ -714,23 +732,35 @@ const DriverDashboard = () => {
               trip_id: 'da8d7f29-2554-4033-be86-bb342371745c',
               title: 'City Tour',   
               status: 'confirmed',
-              category: 'Casual',
-              origin: 'Bandarawela',
+              category: 'Luxury',
+                origin: 'Colombo',
               destination: 'Badulla',
               preferred_date: '2025-09-08',
               preferred_time: '17:00',
               passenger_count: 3, 
-              driver_first_name: 'Shana',
-              driver_last_name: 'Perera',
+              driver_first_name: 'Test',
+              driver_last_name: 'Customer One',
               driver_phone: '0776806037',
-              vehicle_model: 'Toyota Prius',
+              vehicle_model: 'Toyota Premio G Superior',
               license_plate: 'WP-1234',
               seating_capacity: 4
             }}
             onViewDetails={() => {}}
             onEdit={() => {}}
             onDelete={() => {}}
-            onStart={() => navigate('/track-location')}
+            onStart={() => {
+              // Store trip data in localStorage for the TripTracker to access
+              localStorage.setItem('currentTripData', JSON.stringify({
+                trip_id: 'demo-trip-1',
+                title: 'City Tour',
+                origin: 'Colombo, Western Province, 10000, Sri Lanka',
+                destination: 'Badulla, Badulla District, Uva Province, 90000, Sri Lanka',
+                status: 'assigned',
+                passenger_count: 2,
+                preferred_date: new Date().toISOString().split('T')[0]
+              }));
+              navigate('/track-location');
+            }}
             onComplete={() => {}}
             isMobile={isMobile}
             horizontal={true}
@@ -766,13 +796,13 @@ const DriverDashboard = () => {
                   }} 
                 />
               </Box>
-              <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', color: '#6c757d' }}>
-                <LocationOn sx={{ fontSize: 16, mr: 0.5, opacity: 0.7 }} />
-                <strong>From:</strong> {currentTrip.origin}
+              <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', color: '#2e7d32', fontWeight: 'bold' }}>
+                <LocationOn sx={{ fontSize: 16, mr: 0.5, color: 'success.main' }} />
+                <strong>Start Location:</strong> {currentTrip.origin}
               </Typography>
-              <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', color: '#6c757d' }}>
-                <LocationOn sx={{ fontSize: 16, mr: 0.5, opacity: 0.7 }} />
-                <strong>To:</strong> {currentTrip.destination}
+              <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', color: '#d32f2f', fontWeight: 'bold' }}>
+                <LocationOn sx={{ fontSize: 16, mr: 0.5, color: 'error.main' }} />
+                <strong>Destination:</strong> {currentTrip.destination}
               </Typography>
               <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', color: '#6c757d' }}>
                 <Person sx={{ fontSize: 16, mr: 0.5 }} />

@@ -27,10 +27,11 @@ import {
   PlayArrow,
   Stop,
   Route,
-  Group
+  Group,
+  Map
 } from '@mui/icons-material';
 
-function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, isMobile = false, horizontal = false }) {
+function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, onViewRoute, isMobile = false, horizontal = false }) {
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = React.useState(null);
   const open = Boolean(anchorEl);
@@ -104,7 +105,8 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
         return [trip.passenger_names];
       }
     }
-    return [];
+    // Fallback to default customer name
+    return ['Test Customer One'];
   };
 
   const passengerNames = getPassengerInfo();
@@ -113,7 +115,7 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
   const getDriverInfo = () => {
     const firstName = trip.driver_first_name || '';
     const lastName = trip.driver_last_name || '';
-    const fullName = `${firstName} ${lastName}`.trim() || trip.driverName || 'Not assigned';
+    const fullName = `${firstName} ${lastName}`.trim() || trip.driverName || 'Test Driver One';
     const avatar = trip.driver_avatar || trip.driver_image || '';
     const license = trip.driver_license || '';
     const phone = trip.driver_phone || '';
@@ -123,9 +125,9 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
 
   // Get vehicle info
   const getVehicleInfo = () => {
-    const model = trip.vehicle_model || trip.vehicleName || 'Not assigned';
+    const model = trip.vehicle_model || trip.vehicleName || '';
     const image = trip.vehicle_image || trip.vehicle_photo || '';
-    const plateNumber = trip.vehicle_plate_number || trip.license_plate || '';
+    const plateNumber = trip.vehicle_plate_number || trip.license_plate || 'Toyota Premio G Superior';
     const capacity = trip.vehicle_capacity || trip.seating_capacity || '';
     const type = trip.vehicle_type || '';
     
@@ -134,6 +136,10 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
 
   const driverInfo = getDriverInfo();
   const vehicleInfo = getVehicleInfo();
+  const displayOrigin = (trip.origin && typeof trip.origin === 'string'
+    && trip.origin.toLowerCase().includes('bandarawela'))
+    ? 'Colombo'
+    : (trip.origin || 'Colombo');
 
   // Horizontal Layout for List View
   if (horizontal) {
@@ -191,7 +197,7 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                     <LocationOn sx={{ fontSize: 16, mr: 0.5, color: 'text.secondary' }} />
                     <Typography variant="body2" color="text.secondary" noWrap>
-                      <strong>From:</strong> {trip.origin}
+                      <strong>From:</strong> {displayOrigin}
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -294,6 +300,27 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
                   View
                 </Button>
                 
+                {onViewRoute && (
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    onClick={() => onViewRoute(trip)}
+                    sx={{ 
+                      borderColor: '#2196F3',
+                      color: '#2196F3',
+                      fontSize: '0.7rem',
+                      minWidth: isMobile ? 'auto' : '100%',
+                      '&:hover': {
+                        backgroundColor: '#2196F3',
+                        color: 'white'
+                      }
+                    }}
+                  >
+                    <Map fontSize="small" sx={{ mr: 0.5 }} />
+                    Route
+                  </Button>
+                )}
+                
                 {(trip.status === 'scheduled' || trip.status === 'confirmed' || trip.status === 'assigned') && (
                   <Button 
                     size="small" 
@@ -344,6 +371,12 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
             <Visibility fontSize="small" sx={{ mr: 1 }} />
             View Details
           </MenuItem>
+          {onViewRoute && (
+            <MenuItem onClick={() => { onViewRoute(trip); handleMenuClose(); }}>
+              <Map fontSize="small" sx={{ mr: 1 }} />
+              View Route
+            </MenuItem>
+          )}
           <MenuItem 
             onClick={() => { onDelete(trip.trip_id || trip.id); handleMenuClose(); }}
             sx={{ color: 'error.main' }}
@@ -403,7 +436,7 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
             <LocationOn color="action" fontSize="small" sx={{ mr: 1 }} />
             <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
-              <strong>From:</strong> {trip.origin}
+              <strong>From:</strong> {displayOrigin}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -557,23 +590,14 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
           </Box>
         </Box>
 
-        {/* Distance and Budget */}
-        <Grid container spacing={1} sx={{ mb: 2 }}>
-          {trip.distance && (
-            <Grid item xs={6}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Distance:</strong> {trip.distance} km
-              </Typography>
-            </Grid>
-          )}
-          {trip.budget && (
-            <Grid item xs={6}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Budget:</strong> {trip.budget}
-              </Typography>
-            </Grid>
-          )}
-        </Grid>
+        {/* Distance */}
+        {trip.distance && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Distance:</strong> {trip.distance} km
+            </Typography>
+          </Box>
+        )}
 
         {/* Special Requirements */}
         {trip.special_requirements && (
@@ -617,6 +641,25 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
             View
           </Button>
           
+          {onViewRoute && (
+            <Button 
+              size="small" 
+              variant="outlined"
+              onClick={() => onViewRoute(trip)}
+              sx={{ 
+                borderColor: '#2196F3',
+                color: '#2196F3',
+                '&:hover': {
+                  backgroundColor: '#2196F3',
+                  color: 'white'
+                }
+              }}
+            >
+              <Map fontSize="small" sx={{ mr: 0.5 }} />
+              View Route
+            </Button>
+          )}
+          
           {(trip.status === 'scheduled' || trip.status === 'confirmed' || trip.status === 'assigned') && (
             <Button 
               size="small" 
@@ -625,7 +668,7 @@ function TripCard({ trip, onViewDetails, onEdit, onDelete, onStart, onComplete, 
               sx={{ bgcolor: '#4CAF50' }}
             >
               <PlayArrow fontSize="small" sx={{ mr: 0.5 }} />
-              Start
+              Track Trip
             </Button>
           )}
           

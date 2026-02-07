@@ -226,6 +226,133 @@ const TripServices = {
       console.error('Error updating trip status:', error);
       throw error;
     }
+  },
+
+  // Enhanced Trip Management Methods
+  // Customer enhanced trip management
+  createTripRequestEnhanced: async (tripData) => {
+    try {
+      const response = await axios.post(`${USER_URL}/trip/request-enhanced`, tripData, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating enhanced trip request:', error);
+      throw error;
+    }
+  },
+
+  getTripDetails: async (tripId) => {
+    try {
+      const response = await axios.get(`${USER_URL}/trip/details/${tripId}`, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching trip details:', error);
+      throw error;
+    }
+  },
+
+  trackTrip: async (tripId) => {
+    try {
+      const response = await axios.get(`${USER_URL}/trip/track/${tripId}`, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error tracking trip:', error);
+      throw error;
+    }
+  },
+
+  // Tour Operator enhanced trip management
+  getAllTripRequestsEnhanced: async (filters = {}) => {
+    try {
+      const queryParams = new URLSearchParams(filters).toString();
+      const response = await axios.get(`${USER_URL}/trip/all-enhanced${queryParams ? `?${queryParams}` : ''}`, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching enhanced trip requests:', error);
+      throw error;
+    }
+  },
+
+  assignTripToDriverEnhanced: async (tripId, assignmentData) => {
+    try {
+      const response = await axios.patch(`${USER_URL}/trip/${tripId}/assign-enhanced`, assignmentData, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error assigning trip to driver (enhanced):', error);
+      throw error;
+    }
+  },
+
+  getAssignmentOptions: async (tripId, requirements = {}) => {
+    try {
+      const queryParams = new URLSearchParams(requirements).toString();
+      const response = await axios.get(`${USER_URL}/trip/${tripId}/assignment-options${queryParams ? `?${queryParams}` : ''}`, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching assignment options:', error);
+      throw error;
+    }
+  },
+
+  // Driver trip management
+  getDriverTrips: async (filters = {}) => {
+    try {
+      const queryParams = new URLSearchParams(filters).toString();
+      const response = await axios.get(`${USER_URL}/driver/trips${queryParams ? `?${queryParams}` : ''}`, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching driver trips:', error);
+      throw error;
+    }
+  },
+
+  startTrip: async (tripId, locationData) => {
+    try {
+      const response = await axios.post(`${USER_URL}/driver/trips/${tripId}/start`, locationData, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error starting trip:', error);
+      throw error;
+    }
+  },
+
+  updateTripLocation: async (tripId, locationData) => {
+    try {
+      const response = await axios.post(`${USER_URL}/driver/trips/${tripId}/location`, locationData, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating trip location:', error);
+      throw error;
+    }
+  },
+
+  completeTrip: async (tripId, completionData) => {
+    try {
+      const response = await axios.post(`${USER_URL}/driver/trips/${tripId}/complete`, completionData, {
+        headers: getAuthHeaders()
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error completing trip:', error);
+      throw error;
+    }
   }
 };
 

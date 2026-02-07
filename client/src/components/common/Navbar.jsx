@@ -158,8 +158,8 @@ const SidebarMenu = ({ defaultOpen = true }) => {
       { text: "Driver List", icon: <Group />, path: "/driver-list" },
 
       // { text: "Add Driver", icon: <PersonAdd />, path: "/adddriver" },
-      { text: "Trip Schedule", icon: <Schedule />, path: "/trip-schedule" },
-      { text: "Track Location", icon: <LocationOn />, path: "/track-location" },
+      // { text: "Trip Schedule", icon: <Schedule />, path: "/trip-schedule" },
+      // { text: "Track Location", icon: <LocationOn />, path: "/track-location" },
       // { text: "Reports", icon: <Assessment />, path: "/reports" },
     ];
 

@@ -143,7 +143,7 @@ function DriverList() {
               expiry_date: driverProfile?.expiry_date ? new Date(driverProfile.expiry_date).toLocaleDateString() : 'N/A',
               join_date: user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A',
               // Mock data for features not yet implemented
-              availability: getRandomAvailability(),
+              availability: driverProfile?.availability || user.availability || 'Available',
               last_trip: getRandomLastTrip(),
               total_trips: Math.floor(Math.random() * 200) + 50,
               rating: parseFloat((Math.random() * 2 + 3).toFixed(1)), // Random rating between 3.0-5.0
@@ -247,10 +247,6 @@ function DriverList() {
   );
 
   // Helper functions for mock data
-  const getRandomAvailability = () => {
-    const statuses = ['Available', 'On Trip', 'Unavailable'];
-    return statuses[Math.floor(Math.random() * statuses.length)];
-  };
 
   const getRandomLastTrip = () => {
     const destinations = [
@@ -506,7 +502,7 @@ function DriverList() {
                               </Stack>
                             </Grid>
 
-                            {/* Trip Info */}
+                            {/* Last Trip (Card only) */}
                             <Grid item xs={12} md={4}>
                               <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
                                 Last Trip
@@ -531,13 +527,9 @@ function DriverList() {
                                     precision={0.1}
                                     size="small"
                                     sx={{
-                                      color: '#FFD700', // Gold/Yellow color
-                                      '& .MuiRating-iconFilled': {
-                                        color: '#FFD700',
-                                      },
-                                      '& .MuiRating-iconEmpty': {
-                                        color: '#E0E0E0',
-                                      },
+                                      color: '#FFD700',
+                                      '& .MuiRating-iconFilled': { color: '#FFD700' },
+                                      '& .MuiRating-iconEmpty': { color: '#E0E0E0' },
                                     }}
                                   />
                                   <Typography variant="body2" color="text.secondary">
@@ -555,9 +547,6 @@ function DriverList() {
                                   color={getAvailabilityColor(driver.availability)}
                                   size="small"
                                 />
-                                <Typography variant="body2" color="text.secondary">
-                                  Total Trips: {driver.total_trips}
-                                </Typography>
                                 <Button
                                   variant="outlined"
                                   size="small"
@@ -722,28 +711,9 @@ function DriverList() {
                     <Typography variant="body2" color="text.secondary">Experience:</Typography>
                     <Typography variant="body1">{selectedDriver.experience_years} years</Typography>
                   </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">Total Trips:</Typography>
-                    <Typography variant="body1">{selectedDriver.total_trips}</Typography>
-                  </Grid>
                 </Grid>
 
-                <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>Recent Activity</Typography>
-                <Divider sx={{ mb: 2 }} />
                 
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" color="text.secondary">Last Trip:</Typography>
-                    <Typography variant="body1">{selectedDriver.last_trip.destination}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {selectedDriver.last_trip.date} - Duration: {selectedDriver.last_trip.duration}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="text.secondary">Vehicle:</Typography>
-                    <Typography variant="body1">{selectedDriver.vehicle}</Typography>
-                  </Grid>
-                </Grid>
               </Grid>
             </Grid>
           )}

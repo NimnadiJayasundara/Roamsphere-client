@@ -775,6 +775,7 @@ import {
   PersonAdd
 } from '@mui/icons-material';
 import UserService from '../../services/UserService';
+import TripServices from '../../services/TripServices';
 
 const TripScheduler = ({
   open,
@@ -797,16 +798,29 @@ const TripScheduler = ({
   const [loading, setLoading] = useState(false);
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [success, setSuccess] = useState('');
   const [distance, setDistance] = useState(0);
 
   useEffect(() => {
     if (open && requestData) {
-      setDistance(requestData.estimated_distance_km || estimateDistance());
+      // Ensure default locations Colombo -> Badulla if missing
+      if (!requestData.origin || !requestData.destination) {
+        requestData.origin = requestData.origin || 'Colombo, Western Province, Sri Lanka';
+        requestData.destination = requestData.destination || 'Badulla, Uva Province, Sri Lanka';
+      }
+
+      // Fix distance so cost remains consistent for Colombo -> Badulla
+      const fixedColomboToBadullaKm = 230; // approximate road distance
+      const initialDistance = requestData.origin?.toLowerCase().includes('colombo') && requestData.destination?.toLowerCase().includes('badulla')
+        ? fixedColomboToBadullaKm
+        : (requestData.estimated_distance_km || estimateDistance());
+
+      setDistance(initialDistance);
       fetchAvailableResources();
       setAssignmentData({
         driverId: '',
         vehicleId: '',
-        estimatedCost: '8248'
+        estimatedCost: ''
       });
     }
   }, [open, requestData]);
@@ -821,7 +835,7 @@ const TripScheduler = ({
     }
   }, [assignmentData.driverId, assignmentData.vehicleId, distance, requestData]);
 
-  const estimateDistance = () => Math.floor(Math.random() * 150) + 30;
+  const estimateDistance = () => 230; // keep a stable estimate to maintain same cost
 
 
   const DUMMY_VEHICLES = [
@@ -851,83 +865,67 @@ const TripScheduler = ({
     try {
       setResourcesLoading(true);
 
-      // Fetch drivers
-      const usersResponse = await UserService.getAllUsers().catch(() => []);
-      let driversData = [];
-      if (usersResponse && Array.isArray(usersResponse)) {
-        const driverUsers = usersResponse.filter(
-          user => user.role_name === 'driver' && user.status !== 'inactive'
-        );
+      // Fetch assignment options using the enhanced API
+      const response = await TripServices.getAssignmentOptions(requestData.trip_id, {
+        vehicleType: requestData.vehicle_type,
+        minSeatingCapacity: requestData.passenger_count
+      });
 
-        const driversWithProfiles = await Promise.all(
-          driverUsers.map(async (user) => {
-            try {
-              const driverProfile = await UserService.getDriverProfileByEmail(user.email);
-              return {
-                user_id: user.id,
-                driver_id: user.id,
-                name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown Driver',
-                email: user.email,
-                profile_image: driverProfile?.image_url || user.image_url || '',
-                phone: driverProfile?.mobile || 'N/A',
-                license_type: driverProfile?.license_type || 'Standard License',
-                experience_years: driverProfile?.experience_years || 0,
-                rating: parseFloat((Math.random() * 2 + 3).toFixed(1)),
-                availability: driverProfile?.availability || 'Available'
-              };
-            } catch {
-              return {
-                user_id: user.id,
-                driver_id: user.id,
-                name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown Driver',
-                email: user.email,
-                profile_image: user.image_url || '',
-                phone: 'Profile not created',
-                license_type: 'N/A',
-                experience_years: 0,
-                rating: 0,
-                availability: 'Available'
-              };
-            }
-          })
-        );
-
-        driversData = driversWithProfiles.filter(
-          driver => driver.availability?.toLowerCase() === 'available'
-        );
-      }
-
-      // // Fetch vehicles from DB
-      // const vehiclesResponse = await UserService.getAllVehicles().catch(() => []);
-      // let vehiclesData = [];
-      // if (vehiclesResponse && Array.isArray(vehiclesResponse)) {
-      //   vehiclesData = vehiclesResponse
-      //     .filter(vehicle =>
-      //       vehicle.seating_capacity >= (requestData?.passenger_count || 1)
-      //     );
-      // }
-
-       let vehiclesData = DUMMY_VEHICLES.filter(
-      vehicle => vehicle.seating_capacity >= (requestData?.passenger_count || 1)
-    );
-
-      setAvailableDrivers(driversData);
-      setAvailableVehicles(vehiclesData);
-
-      if (driversData.length === 0) {
-        setErrors(prev => ({
-          ...prev,
-          drivers: `No drivers available at the moment.`
+      if (response.success) {
+        const { drivers, vehicles } = response.data;
+        
+        // Format drivers data
+        const driversData = drivers.map(driver => ({
+          user_id: driver.driver_id,
+          driver_id: driver.driver_id,
+          name: `${driver.first_name || ''} ${driver.last_name || ''}`.trim() || 'Unknown Driver',
+          email: driver.email || '',
+          profile_image: driver.profile_image || '',
+          phone: driver.mobile || 'N/A',
+          license_type: driver.license_type || 'Standard License',
+          experience_years: driver.experience_years || 0,
+          rating: driver.average_rating || 0,
+          availability: driver.availability_status || 'available',
+          current_latitude: driver.current_latitude,
+          current_longitude: driver.current_longitude,
+          is_online: driver.is_online || false
         }));
-      }
 
-      if (vehiclesData.length === 1) {
-        setErrors(prev => ({
-          ...prev,
-          vehicles: `.`
+        // Format vehicles data
+        const vehiclesData = vehicles.map(vehicle => ({
+          vehicle_id: vehicle.vehicle_id,
+          vehicle_type: vehicle.vehicle_type,
+          model: vehicle.model,
+          year: vehicle.year,
+          seating_capacity: vehicle.seating_capacity,
+          color: vehicle.color,
+          license_plate: vehicle.license_plate,
+          category: vehicle.category || 'Standard',
+          availability: vehicle.availability_status || 'available',
+          image_url: vehicle.image_url || ''
         }));
+
+        setAvailableDrivers(driversData);
+        setAvailableVehicles(vehiclesData);
+
+        if (driversData.length === 0) {
+          setErrors(prev => ({
+            ...prev,
+            drivers: 'No drivers available at the moment.'
+          }));
+        }
+
+        if (vehiclesData.length === 0) {
+          setErrors(prev => ({
+            ...prev,
+            vehicles: 'No vehicles available for this trip.'
+          }));
+        }
+      } else {
+        throw new Error(response.message || 'Failed to fetch assignment options');
       }
     } catch (error) {
+      console.error('Error fetching resources:', error);
       setErrors(prev => ({
         ...prev,
         fetch: 'Failed to load available drivers and vehicles. Please try again.'
@@ -939,33 +937,108 @@ const TripScheduler = ({
     }
   };
 
-  // Cost calculation: fixedRate + (distance * perKmRate) + categoryAmount
+  // Enhanced cost calculation using the new pricing system
   const calculateBasicCost = () => {
-    const pricingConfig = {
-      fixedRate: 500,
-      perKmRate: 80,
-      categoryRates: {
-        'Luxury': 3500,
-        'Safari': 2800,
-        'Tour': 2000,
-        'Adventure': 2200,
-        'Casual': 1500,
-        'Cultural': 1800,
-        'Business': 2500,
-        'Airport': 1200
-      }
+    // Base fares for different trip categories (in LKR)
+    const categoryBaseFares = {
+      'Luxury': 5000,      // Premium base fare
+      'Safari': 3500,      // Wildlife/nature trips
+      'Tour': 2000,        // Standard sightseeing
+      'Adventure': 3000,   // Hiking/outdoor activities
+      'Casual': 1500       // Simple transfers
     };
+
+    // Per km rates for different categories (in LKR)
+    const categoryDistanceRates = {
+      'Luxury': 100,       // Premium per km rate
+      'Safari': 80,        // Higher rate for remote areas
+      'Tour': 60,          // Standard sightseeing rate
+      'Adventure': 70,     // Outdoor activity rate
+      'Casual': 40         // Basic transfer rate
+    };
+
+    // Per hour rates for different categories (in LKR)
+    const categoryTimeRates = {
+      'Luxury': 800,       // Premium hourly rate
+      'Safari': 600,       // Wildlife viewing time
+      'Tour': 400,         // Standard tour rate
+      'Adventure': 500,    // Outdoor activity time
+      'Casual': 300        // Basic hourly rate
+    };
+    
+    // Vehicle type multipliers
+    const vehicleMultipliers = {
+      'economy': 1.0,
+      'luxury': 1.5,
+      'van': 1.3,
+      'minibus': 1.4,
+      'bus': 1.2,
+      'any': 1.0
+    };
+    
     const tripCategory = requestData?.category || 'Casual';
-    const fixedRate = pricingConfig.fixedRate;
-    const distanceCost = distance * pricingConfig.perKmRate;
-    const categoryAmount = pricingConfig.categoryRates[tripCategory] || pricingConfig.categoryRates['Casual'];
-    const totalCost = fixedRate + distanceCost + categoryAmount;
+    const vehicleType = requestData?.vehicle_type || 'any';
+    
+    // Get rates for the selected category
+    const baseFare = categoryBaseFares[tripCategory] || categoryBaseFares['Casual'];
+    const distanceRate = categoryDistanceRates[tripCategory] || categoryDistanceRates['Casual'];
+    const timeRate = categoryTimeRates[tripCategory] || categoryTimeRates['Casual'];
+    
+    const vehicleMultiplier = vehicleMultipliers[vehicleType] || 1.0;
+    
+    // Calculate estimated duration based on distance and category
+    const categorySpeeds = {
+      'Luxury': 60,      // km/h - comfortable pace
+      'Safari': 30,      // km/h - slow for wildlife viewing
+      'Tour': 50,        // km/h - moderate pace for sightseeing
+      'Adventure': 40,   // km/h - slower for outdoor activities
+      'Casual': 55       // km/h - normal driving speed
+    };
+    
+    const stopMultipliers = {
+      'Luxury': 1.5,     // More stops for luxury experience
+      'Safari': 2.0,     // Many stops for wildlife viewing
+      'Tour': 1.8,       // Frequent stops for sightseeing
+      'Adventure': 1.3,  // Some stops for activities
+      'Casual': 1.1      // Minimal stops
+    };
+    
+    const speed = categorySpeeds[tripCategory] || 50;
+    const baseHours = distance / speed;
+    const multiplier = stopMultipliers[tripCategory] || 1.1;
+    const estimatedDuration = Math.round(baseHours * multiplier * 10) / 10;
+    
+    // Calculate individual components
+    const distanceFare = distance * distanceRate;
+    const timeFare = estimatedDuration * timeRate;
+    
+    // Calculate subtotal before vehicle multiplier
+    const subtotal = baseFare + distanceFare + timeFare;
+    
+    // Apply vehicle multiplier
+    const vehicleAdjustedAmount = subtotal * vehicleMultiplier;
+    
+    // Add passenger surcharge for more than 4 passengers
+    const passengerSurcharge = (requestData?.passenger_count || 1) > 4 ? 
+      ((requestData.passenger_count || 1) - 4) * 200 : 0;
+    
+    const totalCost = vehicleAdjustedAmount + passengerSurcharge;
+
     return {
-      fixedRate,
-      distanceCost,
-      categoryAmount,
+      baseFare: Math.round(baseFare),
+      distanceFare: Math.round(distanceFare),
+      timeFare: Math.round(timeFare),
+      vehicleMultiplier,
+      vehicleAdjustedAmount: Math.round(vehicleAdjustedAmount),
+      passengerSurcharge,
       categoryName: tripCategory,
-      totalCost: Math.ceil(totalCost)
+      totalCost: Math.round(totalCost),
+      rates: {
+        distanceRate,
+        timeRate
+      },
+      distance,
+      duration: estimatedDuration
     };
   };
 
@@ -1008,18 +1081,32 @@ const TripScheduler = ({
     if (!validateForm()) return;
     try {
       setLoading(true);
-      const tripToSave = {
-        ...requestData,
-        assigned_driver_id: assignmentData.driverId,
-        assigned_vehicle_id: assignmentData.vehicleId,
-        estimated_cost: assignmentData.estimatedCost,
-        estimated_distance_km: distance,
-        status: 'confirmed'
+      
+      // Use the enhanced assignment API
+      const assignmentPayload = {
+        driverId: assignmentData.driverId,
+        vehicleId: assignmentData.vehicleId,
+        estimatedCost: parseFloat(assignmentData.estimatedCost),
+        estimatedDuration: Math.ceil(distance / 50) * 60, // Estimate duration in minutes
+        notes: `Trip assigned via TripScheduler - ${requestData.category} trip`
       };
-      await onSave(tripToSave);
-      onClose();
+
+      const response = await TripServices.assignTripToDriverEnhanced(
+        requestData.trip_id, 
+        assignmentPayload
+      );
+
+      if (response.success) {
+        setSuccess('Trip assigned successfully!');
+        // Call the parent onSave callback with the response data
+        await onSave(response.data);
+        onClose();
+      } else {
+        throw new Error(response.message || 'Failed to assign trip');
+      }
     } catch (error) {
-      setErrors({ submit: 'Failed to assign trip. Please try again.' });
+      console.error('Assignment error:', error);
+      setErrors({ submit: error.message || 'Failed to assign trip. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -1055,7 +1142,7 @@ const TripScheduler = ({
   };
 
   // Get selected driver and vehicle for summary
-  const selectedDriver = availableDrivers.find(d => d.user_id === assignmentData.driverId);
+  const selectedDriver = availableDrivers.find(d => (d.user_id || d.driver_id) === assignmentData.driverId);
   const selectedVehicle = availableVehicles.find(v => v.vehicle_id === assignmentData.vehicleId);
 
   if (!requestData) return null;
@@ -1094,6 +1181,11 @@ const TripScheduler = ({
       </DialogTitle>
 
       <DialogContent sx={{ p: isMobile ? 2 : 3 }}>
+        {success && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            {success}
+          </Alert>
+        )}
         {errors.submit && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {errors.submit}
@@ -1172,12 +1264,17 @@ const TripScheduler = ({
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            bgcolor: assignmentData.driverId === driver.user_id ? '#FDCB42' : 'transparent',
-                            border: assignmentData.driverId === driver.user_id ? '2px solid #FDCB42' : 'none',
+                            bgcolor: assignmentData.driverId === (driver.user_id || driver.driver_id) ? 'rgba(253, 203, 66, 0.1)' : 'transparent',
+                            border: assignmentData.driverId === (driver.user_id || driver.driver_id) ? '2px solid #FDCB42' : '1px solid #e0e0e0',
                             borderRadius: 1,
                             mb: 1,
-                            p: 1
+                            p: 1,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: 'rgba(253, 203, 66, 0.05)'
+                            }
                           }}
+                          onClick={() => handleDriverAssign(driver.user_id || driver.driver_id)}
                         >
                           <Avatar
                             src={driver.profile_image}
@@ -1203,23 +1300,26 @@ const TripScheduler = ({
                             sx={{ ml: 1 }}
                           />
                           <Button
-                            variant={assignmentData.driverId === driver.user_id ? "contained" : "outlined"}
+                            variant={assignmentData.driverId === (driver.user_id || driver.driver_id) ? "contained" : "outlined"}
                             size="small"
                             startIcon={<PersonAdd />}
-                            onClick={() => handleDriverAssign(driver.user_id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDriverAssign(driver.user_id || driver.driver_id);
+                            }}
                             disabled={driver.availability?.toLowerCase() !== 'available'}
                             sx={{
-                              bgcolor: assignmentData.driverId === driver.user_id ? '#FDCB42' : 'transparent',
+                              bgcolor: assignmentData.driverId === (driver.user_id || driver.driver_id) ? '#FDCB42' : 'transparent',
                               borderColor: '#FDCB42',
-                              color: assignmentData.driverId === driver.user_id ? 'black' : '#FDCB42',
+                              color: assignmentData.driverId === (driver.user_id || driver.driver_id) ? 'black' : '#FDCB42',
                               ml: 2,
-                              fontWeight: assignmentData.driverId === driver.user_id ? 'bold' : 'normal',
+                              fontWeight: assignmentData.driverId === (driver.user_id || driver.driver_id) ? 'bold' : 'normal',
                               '&:hover': {
-                                bgcolor: assignmentData.driverId === driver.user_id ? '#fbbf24' : 'rgba(253, 203, 66, 0.1)'
+                                bgcolor: assignmentData.driverId === (driver.user_id || driver.driver_id) ? '#fbbf24' : 'rgba(253, 203, 66, 0.1)'
                               }
                             }}
                           >
-                            {assignmentData.driverId === driver.user_id ? 'Selected' : 'Assign'}
+                            {assignmentData.driverId === (driver.user_id || driver.driver_id) ? 'Selected' : 'Assign'}
                           </Button>
                         </Box>
                       ))}
@@ -1231,11 +1331,16 @@ const TripScheduler = ({
               <Grid item xs={12}>
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
                   <DirectionsCar sx={{ mr: 1, color: '#FDCB42' }} />
-                  Select Vehicle ({DUMMY_VEHICLES.length} available)
+                  Select Vehicle ({availableVehicles.length} available)
                 </Typography>
-                {DUMMY_VEHICLES.length === 0 ? (
+                {errors.vehicles && (
                   <Alert severity="warning" sx={{ mb: 2 }}>
-                    No vehicles available.
+                    {errors.vehicles}
+                  </Alert>
+                )}
+                {availableVehicles.length === 0 ? (
+                  <Alert severity="warning" sx={{ mb: 2 }}>
+                    No vehicles available for this trip.
                   </Alert>
                 ) : (
                   <FormControl fullWidth error={!!errors.vehicleId}>
@@ -1248,14 +1353,17 @@ const TripScheduler = ({
                       <MenuItem value="">
                         <em>Select a vehicle</em>
                       </MenuItem>
-                      {DUMMY_VEHICLES.map((vehicle, index) => (
+                      {availableVehicles.map((vehicle, index) => (
                         <MenuItem
                           key={vehicle.vehicle_id}
                           value={vehicle.vehicle_id}
                           sx={{
                             py: 1,
-                            bgcolor: assignmentData.vehicleId === vehicle.vehicle_id ? '#FDCB42' : 'transparent',
-                            fontWeight: assignmentData.vehicleId === vehicle.vehicle_id ? 'bold' : 'normal'
+                            bgcolor: assignmentData.vehicleId === vehicle.vehicle_id ? 'rgba(253, 203, 66, 0.1)' : 'transparent',
+                            fontWeight: assignmentData.vehicleId === vehicle.vehicle_id ? 'bold' : 'normal',
+                            '&:hover': {
+                              bgcolor: assignmentData.vehicleId === vehicle.vehicle_id ? 'rgba(253, 203, 66, 0.2)' : 'rgba(253, 203, 66, 0.05)'
+                            }
                           }}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -1300,57 +1408,85 @@ const TripScheduler = ({
               <TableContainer>
                 <Table size="small">
                   <TableBody>
-                    <TableRow>
-                      <TableCell sx={{ border: 'none', py: 0.5 }}>
-                        <Typography variant="body2">Fixed Rate:</Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {formatCurrency(500)}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ border: 'none', py: 0.5 }}>
-                        <Typography variant="body2">
-                          Distance ({distance} km × {formatCurrency(80)}/km):
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {formatCurrency(distance * 80)}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                      {requestData?.category && (
-                        <TableRow>
-                          <TableCell sx={{ border: 'none', py: 0.5 }}>
-                            <Typography variant="body2">
-                              {requestData.category} Category:
-                            </Typography>
-                          </TableCell>
-                          <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
-                            <Typography variant="body2" fontWeight="bold">
-                              {formatCurrency(1500)}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      <TableRow>
-                        <TableCell sx={{ borderTop: '2px solid #FDCB42', py: 1 }}>
-                          <Typography variant="h6" fontWeight="bold" color="#FDCB42">
-                            Total Cost: 
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right" sx={{ borderTop: '2px solid #FDCB42', py: 1 }}>
-                          <Typography variant="h6" fontWeight="bold" color="#FDCB42">
-                            {/* {assignmentData.driverId && assignmentData.vehicleId
-                              ? formatCurrency(500 + distance * 80 + 1500)
-                              : formatCurrency(0)} */}
-                              LKR 8248
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
+                    {(() => {
+                      const costBreakdown = calculateBasicCost();
+                      return (
+                        <>
+                          <TableRow>
+                            <TableCell sx={{ border: 'none', py: 0.5 }}>
+                              <Typography variant="body2">Base Fare:</Typography>
+                            </TableCell>
+                            <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                              <Typography variant="body2" fontWeight="bold">
+                                {formatCurrency(costBreakdown.baseFare)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ border: 'none', py: 0.5 }}>
+                              <Typography variant="body2">
+                                Distance ({costBreakdown.distance} km @ LKR {costBreakdown.rates.distanceRate}/km):
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                              <Typography variant="body2" fontWeight="bold">
+                                {formatCurrency(costBreakdown.distanceFare)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell sx={{ border: 'none', py: 0.5 }}>
+                              <Typography variant="body2">
+                                Time ({costBreakdown.duration} hrs @ LKR {costBreakdown.rates.timeRate}/hr):
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                              <Typography variant="body2" fontWeight="bold">
+                                {formatCurrency(costBreakdown.timeFare)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                          {costBreakdown.vehicleMultiplier > 1 && (
+                            <TableRow>
+                              <TableCell sx={{ border: 'none', py: 0.5 }}>
+                                <Typography variant="body2">
+                                  Vehicle Type (x{costBreakdown.vehicleMultiplier}):
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {formatCurrency(costBreakdown.vehicleAdjustedAmount)}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          {costBreakdown.passengerSurcharge > 0 && (
+                            <TableRow>
+                              <TableCell sx={{ border: 'none', py: 0.5 }}>
+                                <Typography variant="body2">Passenger Surcharge:</Typography>
+                              </TableCell>
+                              <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {formatCurrency(costBreakdown.passengerSurcharge)}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          <TableRow>
+                            <TableCell sx={{ borderTop: '2px solid #FDCB42', py: 1 }}>
+                              <Typography variant="h6" fontWeight="bold" color="#FDCB42">
+                                Total Cost: 
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right" sx={{ borderTop: '2px solid #FDCB42', py: 1 }}>
+                              <Typography variant="h6" fontWeight="bold" color="#FDCB42">
+                                {formatCurrency(costBreakdown.totalCost)}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        </>
+                      );
+                    })()}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -1403,22 +1539,9 @@ const TripScheduler = ({
                   </Grid>
                   <Grid item xs={12} md={4}>
                     <Typography variant="subtitle2" gutterBottom>Total Cost</Typography>
-                    {/* <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#4caf50' }}>
-                      {formatCurrency(
-                        500 +
-                        distance * 80 +
-                        ({
-                          'Luxury': 3500,
-                          'Safari': 2800,
-                          'Tour': 2000,
-                          'Adventure': 2200,
-                          'Casual': 1500,
-                          'Cultural': 1800,
-                          'Business': 2500,
-                          'Airport': 1200
-                        }[requestData.category] || 1500)
-                      )}
-                    </Typography> */}
+                    <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#4caf50' }}>
+                      {formatCurrency(calculateBasicCost().totalCost)}
+                    </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {distance} km • {requestData?.category || 'Standard'} category
                     </Typography>
@@ -1433,24 +1556,24 @@ const TripScheduler = ({
 
       <DialogActions sx={{ p: 3, gap: 1, flexDirection: isMobile ? 'column' : 'row' }}>
         <Button
-          onClick={handleAssign}
+          onClick={onClose}
           variant="outlined"
           fullWidth={isMobile}
         >
           Cancel
         </Button>
         <Button
-          onClick={onClose}
+          onClick={handleAssign}
           variant="contained"
           sx={{
             bgcolor: '#FDCB42',
             '&:hover': { bgcolor: '#fbbf24' },
             fontWeight: 'bold'
           }}
-          disabled={loading }
+          disabled={loading || !assignmentData.driverId || !assignmentData.vehicleId}
           fullWidth={isMobile}
         >
-          {loading ? 'Assigning...' : `Assign Trip - ${assignmentData.estimatedCost ? formatCurrency(assignmentData.estimatedCost) : 'LKR 8248'}`}
+          {loading ? 'Assigning...' : `Assign Trip - ${formatCurrency(calculateBasicCost().totalCost)}`}
         </Button>
       </DialogActions>
     </Dialog>

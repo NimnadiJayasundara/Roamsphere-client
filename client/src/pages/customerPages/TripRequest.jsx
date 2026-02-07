@@ -48,6 +48,8 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../../components/common/Navbar';
 import TripServices from '../../services/TripServices';
 import LocationPickerMap from '../../components/location/LocationPickerMap';
+import PaymentStep from '../../components/payment/PaymentStep';
+import PaymentService from '../../services/PaymentService';
 
 const TripRequest = () => {
   const theme = useTheme();
@@ -61,6 +63,8 @@ const TripRequest = () => {
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [requestId, setRequestId] = useState('');
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [paymentData, setPaymentData] = useState(null);
 
   // Map states
   const [mapOpen, setMapOpen] = useState(false);
@@ -100,8 +104,8 @@ const TripRequest = () => {
 
   const [errors, setErrors] = useState({});
 
-  const steps = ['Trip Details', 'Schedule', 'Passenger Info', 'Preferences', 'Review & Submit'];
-  const shortSteps = ['Trip', 'Schedule', 'Passengers', 'Preferences', 'Review'];
+  const steps = ['Trip Details', 'Schedule', 'Passenger Info', 'Preferences', 'Payment', 'Review & Submit'];
+  const shortSteps = ['Trip', 'Schedule', 'Passengers', 'Preferences', 'Payment', 'Review'];
 
   // Updated trip categories to match database ENUM
   const tripCategories = [
@@ -281,6 +285,11 @@ const TripRequest = () => {
       case 3: // Preferences
         // All fields optional
         break;
+      
+      case 4: // Payment
+        // Payment validation is handled in the final submit step
+        // Allow user to proceed to review step to see payment status
+        break;
     }
 
     setErrors(newErrors);
@@ -303,6 +312,12 @@ const TripRequest = () => {
 
   const handleSubmit = async () => {
     if (!validateStep(activeStep)) return;
+
+    // Check payment completion before final submission
+    if (!paymentCompleted) {
+      setErrors({ submit: 'Payment is required to complete the trip request. Please go back to the Payment step and complete your payment.' });
+      return;
+    }
 
     try {
       setSubmissionLoading(true);
@@ -334,6 +349,16 @@ const TripRequest = () => {
       const response = await TripServices.createTripRequest(submitData);
 
       if (response.success) {
+        // Confirm payment if payment was completed
+        if (paymentCompleted && paymentData) {
+          try {
+            await PaymentService.confirmPayment(paymentData.paymentId, response.data.tripId);
+          } catch (paymentError) {
+            console.error('Payment confirmation failed:', paymentError);
+            // Continue with trip creation even if payment confirmation fails
+          }
+        }
+        
         setRequestId(response.data.tripId);
         setSubmitted(true);
         
@@ -350,6 +375,8 @@ const TripRequest = () => {
           vehicleType: '', specialRequirements: ''
         });
         setActiveStep(0);
+        setPaymentCompleted(false);
+        setPaymentData(null);
       } else {
         setErrors({ submit: response.message || 'Failed to submit trip request' });
       }
@@ -389,6 +416,17 @@ const TripRequest = () => {
       handleInputChange('destination', location.address);
     }
     setMapOpen(false);
+  };
+
+  // Payment handling functions
+  const handlePaymentSuccess = (paymentResponse) => {
+    setPaymentCompleted(true);
+    setPaymentData(paymentResponse);
+    setErrors(prev => ({ ...prev, payment: undefined }));
+  };
+
+  const handlePaymentError = (errorMessage) => {
+    setErrors(prev => ({ ...prev, payment: errorMessage }));
   };
 
   const renderStepContent = (step) => {
@@ -722,6 +760,16 @@ const TripRequest = () => {
         );
 
       case 4:
+        return (
+          <PaymentStep
+            tripData={requestData}
+            onPaymentSuccess={handlePaymentSuccess}
+            onPaymentError={handlePaymentError}
+            isMobile={isMobile}
+          />
+        );
+
+      case 5:
         const selectedCategory = tripCategories.find(cat => cat.value === requestData.category);
         
         return (
@@ -794,6 +842,63 @@ const TripRequest = () => {
                         </Typography>
                       )}
                     </>
+                  )}
+
+                  <Divider sx={{ my: 2, bgcolor: 'rgba(253, 203, 66, 0.3)' }} />
+                  
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', color: '#1a1a1a' }}>
+                    Payment Information
+                  </Typography>
+                  {paymentCompleted && paymentData ? (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1, 
+                      mb: 1,
+                      p: 1,
+                      bgcolor: 'rgba(76, 175, 80, 0.1)',
+                      borderRadius: 1,
+                      border: '1px solid rgba(76, 175, 80, 0.3)'
+                    }}>
+                      <CheckCircle sx={{ color: 'success.main', fontSize: 20 }} />
+                      <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'bold' }}>
+                        Payment Completed
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 1, 
+                      mb: 1,
+                      p: 1,
+                      bgcolor: 'rgba(244, 67, 54, 0.1)',
+                      borderRadius: 1,
+                      border: '1px solid rgba(244, 67, 54, 0.3)'
+                    }}>
+                      <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold' }}>
+                        ⚠️ Payment Required - Please complete payment to submit your request
+                      </Typography>
+                    </Box>
+                  )}
+                  {paymentData && (
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      Payment ID: {paymentData.paymentId}
+                    </Typography>
+                  )}
+                  {!paymentCompleted && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setActiveStep(4)}
+                      sx={{
+                        borderColor: '#FDCB42',
+                        color: '#FDCB42',
+                        '&:hover': { backgroundColor: 'rgba(253, 203, 66, 0.1)' },
+                        mt: 1
+                      }}
+                    >
+                      Complete Payment
+                    </Button>
                   )}
                 </CardContent>
               </Card>
@@ -918,6 +1023,8 @@ const TripRequest = () => {
                     setSubmitted(false);
                     setActiveStep(0);
                     setRequestId('');
+                    setPaymentCompleted(false);
+                    setPaymentData(null);
                   }}
                 >
                   New Request
