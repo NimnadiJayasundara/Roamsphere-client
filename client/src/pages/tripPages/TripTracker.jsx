@@ -8,6 +8,7 @@ import {
   TextField,
   Grid,
   Card,
+  CardContent,
   Chip,
   Alert,
   CircularProgress,
@@ -47,6 +48,7 @@ import TripServices from '../../services/TripServices';
 import Navbar from '../../components/common/Navbar';
 import Header from '../../components/common/Header';
 import { jwtDecode } from 'jwt-decode';
+import L from 'leaflet';
 
 function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
   const theme = useTheme();
@@ -57,8 +59,12 @@ function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [destination, setDestination] = useState('');
   const [destinationCoords, setDestinationCoords] = useState(null);
-  const [routeInfo, setRouteInfo] = useState(null);
   const [currentDriverId, setCurrentDriverId] = useState(null);
+  const [currentTrip, setCurrentTrip] = useState(null);
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [tripStats, setTripStats] = useState({
     distance: 0,
     duration: 0,
@@ -89,8 +95,45 @@ function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
     };
   }, []);
 
+  // Draw route on map when routeInfo is available
+  useEffect(() => {
+    if (routeInfo && mapLoaded) {
+      drawRouteOnMap(routeInfo);
+    }
+  }, [routeInfo, mapLoaded]);
+
+  // Scroll event listener for scroll buttons
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      setShowScrollTop(scrollTop > 300);
+      setShowScrollBottom(scrollTop < documentHeight - windowHeight - 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  const scrollToBottom = () => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'smooth'
+    });
+  };
+
   const initializeComponent = async () => {
     await getCurrentDriverInfo();
+    await fetchCurrentTrip();
     await initializeMap();
     await getCurrentLocation();
   };
@@ -107,15 +150,194 @@ function TripTracker({ tripId, onLocationUpdate, embedded = false }) {
     }
   };
 
+  const fetchCurrentTrip = async () => {
+    try {
+      setLoading(true);
+      
+      // First check if trip data was passed via localStorage (from START button)
+      const storedTripData = localStorage.getItem('currentTripData');
+      if (storedTripData) {
+        const tripData = JSON.parse(storedTripData);
+        setCurrentTrip(tripData);
+        setDestination(tripData.destination);
+        // Calculate route for the trip
+        await calculateRoute(tripData.origin, tripData.destination);
+        // Clear the stored data after using it
+        localStorage.removeItem('currentTripData');
+        setLoading(false);
+        return;
+      }
+      
+      // Otherwise, fetch from API
+      try {
+        const response = await TripServices.getDriverTrips();
+        
+        if (response.success && response.data.trips) {
+          // Find the current active trip (in-progress or assigned)
+          const activeTrip = response.data.trips.find(trip => 
+            trip.status === 'in-progress' || trip.status === 'assigned' || trip.status === 'confirmed'
+          );
+          
+          if (activeTrip) {
+            setCurrentTrip(activeTrip);
+            setDestination(activeTrip.destination);
+            // Calculate route for the trip
+            await calculateRoute(activeTrip.origin, activeTrip.destination);
+          }
+        }
+      } catch (apiError) {
+        console.error('API call failed, but continuing with localStorage data if available:', apiError);
+        // Don't set error here as we might have localStorage data
+      }
+    } catch (error) {
+      console.error('Error fetching current trip:', error);
+      setError('Failed to fetch current trip details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateRoute = async (origin, destination) => {
+    try {
+      setRouteLoading(true);
+      
+      // For Bandarawela to Badulla route, we'll use a predefined route
+      if (origin && destination) {
+        const route = await getRouteDetails(origin, destination);
+        setRouteInfo(route);
+      }
+    } catch (error) {
+      console.error('Error calculating route:', error);
+      setError('Failed to calculate route');
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+
+  const getRouteDetails = async (origin, destination) => {
+    // For Bandarawela to Badulla, provide detailed route information
+    if (origin.toLowerCase().includes('bandarawela') && destination.toLowerCase().includes('badulla')) {
+      return {
+        distance: 45.2, // km
+        duration: 1.2, // hours
+        route: [
+          "Start from Bandarawela town center",
+          "Head northeast on A16 highway",
+          "Continue on A16 for 25km",
+          "Pass through Haputale",
+          "Continue on A16 towards Badulla",
+          "Enter Badulla town center",
+          "Arrive at destination"
+        ],
+        waypoints: [
+          { name: "Bandarawela", lat: 6.8356, lng: 80.9856 },
+          { name: "Haputale", lat: 6.7667, lng: 80.9500 },
+          { name: "Badulla", lat: 6.9934, lng: 81.0550 }
+        ],
+        estimatedTime: "1 hour 12 minutes",
+        roadType: "Highway (A16)",
+        difficulty: "Easy"
+      };
+    }
+    
+    // Default route calculation for other locations
+    return {
+      distance: 50,
+      duration: 1.5,
+      route: [`Route from ${origin} to ${destination}`],
+      waypoints: [],
+      estimatedTime: "1 hour 30 minutes",
+      roadType: "Mixed",
+      difficulty: "Moderate"
+    };
+  };
+
+  const drawRouteOnMap = async (routeInfo) => {
+    if (!routeInfo || !routeInfo.waypoints || routeInfo.waypoints.length === 0) {
+      return;
+    }
+
+    try {
+      // Wait for map to be loaded
+      if (!mapLoaded) {
+        setTimeout(() => drawRouteOnMap(routeInfo), 1000);
+        return;
+      }
+
+      const map = LeafletLocationService.getMap();
+      if (!map) {
+        console.log('Map not available yet, retrying...');
+        setTimeout(() => drawRouteOnMap(routeInfo), 1000);
+        return;
+      }
+
+      // Clear existing route layers
+      map.eachLayer((layer) => {
+        if (layer.routeLayer) {
+          map.removeLayer(layer);
+        }
+      });
+
+      // Add markers for waypoints
+      const markers = [];
+      routeInfo.waypoints.forEach((waypoint, index) => {
+        const marker = L.marker([waypoint.lat, waypoint.lng], {
+          icon: L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="background-color:${index === 0 ? '#4CAF50' : index === routeInfo.waypoints.length - 1 ? '#F44336' : '#2196F3'}; width:2rem; height:2rem; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">${index === 0 ? 'S' : index === routeInfo.waypoints.length - 1 ? 'E' : index}</div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 30]
+          })
+        }).addTo(map);
+        
+        marker.bindPopup(`<b>${waypoint.name}</b>`);
+        markers.push(marker);
+      });
+
+      // Draw route line connecting waypoints
+      const routeCoordinates = routeInfo.waypoints.map(wp => [wp.lat, wp.lng]);
+      const routeLine = L.polyline(routeCoordinates, {
+        color: '#FDCB42',
+        weight: 6,
+        opacity: 0.8,
+        dashArray: '10, 10'
+      }).addTo(map);
+      
+      routeLine.routeLayer = true; // Mark as route layer for cleanup
+
+      // Fit map to show the entire route
+      const group = new L.featureGroup(markers.concat([routeLine]));
+      map.fitBounds(group.getBounds().pad(0.1));
+
+      console.log('Route drawn on map successfully');
+    } catch (error) {
+      console.error('Error drawing route on map:', error);
+    }
+  };
+
   const initializeMap = async () => {
     try {
       setLoading(true);
+      
+      // Check if map is already initialized
+      if (mapRef.current && mapRef.current._leaflet_id) {
+        console.log('Map already initialized, skipping...');
+        setMapLoaded(true);
+        return;
+      }
+      
       await LeafletLocationService.initializeMap(mapRef.current);
       setMapLoaded(true);
       setError('');
     } catch (err) {
       console.error('Map initialization error:', err);
-      setError('Failed to load map. Please check your internet connection.');
+      // If map is already initialized, that's okay
+      if (err.message && err.message.includes('already initialized')) {
+        setMapLoaded(true);
+        setError('');
+      } else {
+        setError('Failed to load map. Please check your internet connection.');
+      }
     } finally {
       setLoading(false);
     }
@@ -887,10 +1109,24 @@ const handleDestinationSubmit = async () => {
         {/* Main Content */}
         <Box sx={{ 
           flexGrow: 1,
-          overflow: 'hidden',
+          overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: isMobile ? '100vh' : 'calc(100vh - 64px)'
+          maxHeight: isMobile ? '100vh' : 'calc(100vh - 64px)',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: '#f1f1f1',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: '#FDCB42',
+            borderRadius: '4px',
+            '&:hover': {
+              background: '#F4B942',
+            },
+          },
         }}>
           <Container maxWidth="xl" sx={{ 
             flexGrow: 1,
@@ -918,6 +1154,182 @@ const handleDestinationSubmit = async () => {
                 </Typography>
               </Paper>
             )}
+
+            {/* Current Trip Information */}
+            {currentTrip && (
+              <Paper sx={{ p: 2, mb: 1, bgcolor: '#f8f9fa', border: '2px solid #FDCB42' }}>
+                <Typography variant="h6" sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  color: '#FDCB42',
+                  fontWeight: 'bold',
+                  mb: 2
+                }}>
+                  <LocationOn sx={{ mr: 1 }} />
+                  Current Trip Details
+                </Typography>
+                
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Card sx={{ bgcolor: 'rgba(46, 125, 50, 0.1)', border: '1px solid #2e7d32' }}>
+                      <CardContent sx={{ py: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <LocationOn sx={{ fontSize: 20, mr: 1, color: 'success.main' }} />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                            Start Location
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#1b5e20' }}>
+                          {currentTrip.origin}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={6}>
+                    <Card sx={{ bgcolor: 'rgba(211, 47, 47, 0.1)', border: '1px solid #d32f2f' }}>
+                      <CardContent sx={{ py: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <LocationOn sx={{ fontSize: 20, mr: 1, color: 'error.main' }} />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#d32f2f' }}>
+                            Destination
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#b71c1c' }}>
+                          {currentTrip.destination}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+                
+                <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={`Trip: ${currentTrip.title || 'Untitled Trip'}`}
+                    color="primary"
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`Status: ${currentTrip.status}`}
+                    color={currentTrip.status === 'in-progress' ? 'success' : 'default'}
+                    variant="filled"
+                  />
+                  <Chip
+                    label={`Passengers: ${currentTrip.passenger_count || 1}`}
+                    color="info"
+                    variant="outlined"
+                  />
+                  {currentTrip.preferred_date && (
+                    <Chip
+                      label={`Date: ${new Date(currentTrip.preferred_date).toLocaleDateString()}`}
+                      color="secondary"
+                      variant="outlined"
+                    />
+                  )}
+                </Box>
+              </Paper>
+            )}
+
+            {/* Route Information */}
+            {routeInfo && (
+              <Paper sx={{ p: 2, mb: 1, bgcolor: '#e3f2fd', border: '2px solid #2196f3' }}>
+                <Typography variant="h6" sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center',
+                  color: '#1976d2',
+                  fontWeight: 'bold',
+                  mb: 2
+                }}>
+                  <Route sx={{ mr: 1 }} />
+                  Route Information
+                  {routeLoading && <CircularProgress size={20} sx={{ ml: 2 }} />}
+                </Typography>
+                
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ bgcolor: 'rgba(33, 150, 243, 0.1)', border: '1px solid #2196f3' }}>
+                      <CardContent sx={{ py: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <Route sx={{ fontSize: 20, mr: 1, color: 'primary.main' }} />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#1976d2' }}>
+                            Distance
+                          </Typography>
+                        </Box>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#0d47a1' }}>
+                          {routeInfo.distance} km
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ bgcolor: 'rgba(76, 175, 80, 0.1)', border: '1px solid #4caf50' }}>
+                      <CardContent sx={{ py: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <Timer sx={{ fontSize: 20, mr: 1, color: 'success.main' }} />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                            Duration
+                          </Typography>
+                        </Box>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#1b5e20' }}>
+                          {routeInfo.estimatedTime}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Card sx={{ bgcolor: 'rgba(255, 152, 0, 0.1)', border: '1px solid #ff9800' }}>
+                      <CardContent sx={{ py: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <Navigation sx={{ fontSize: 20, mr: 1, color: 'warning.main' }} />
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: '#e65100' }}>
+                            Road Type
+                          </Typography>
+                        </Box>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#bf360c' }}>
+                          {routeInfo.roadType}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#bf360c' }}>
+                          Difficulty: {routeInfo.difficulty}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+                
+                {/* Route Steps */}
+                {routeInfo.route && routeInfo.route.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: '#1976d2' }}>
+                      Route Directions:
+                    </Typography>
+                    <List dense>
+                      {routeInfo.route.map((step, index) => (
+                        <ListItem key={index} sx={{ py: 0.5 }}>
+                          <ListItemIcon>
+                            <Chip 
+                              label={index + 1} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: '#2196f3', 
+                                color: 'white',
+                                minWidth: '24px',
+                                height: '24px'
+                              }} 
+                            />
+                          </ListItemIcon>
+                          <ListItemText 
+                            primary={step}
+                            sx={{ '& .MuiListItemText-primary': { fontSize: '0.9rem' } }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Box>
+                )}
+              </Paper>
+            )}
             
             {/* Map and Controls */}
             <Box sx={{ 
@@ -931,6 +1343,56 @@ const handleDestinationSubmit = async () => {
           </Container>
         </Box>
       </Box>
+
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <Fab
+          color="primary"
+          size="medium"
+          onClick={scrollToTop}
+          sx={{
+            position: 'fixed',
+            bottom: 80,
+            right: 20,
+            zIndex: 1000,
+            bgcolor: '#FDCB42',
+            '&:hover': {
+              bgcolor: '#F4B942',
+              transform: 'scale(1.1)'
+            },
+            transition: 'all 0.3s ease-in-out',
+            boxShadow: '0 4px 12px rgba(253, 203, 66, 0.4)'
+          }}
+          aria-label="scroll to top"
+        >
+          <Navigation sx={{ transform: 'rotate(-90deg)' }} />
+        </Fab>
+      )}
+
+      {/* Scroll to Bottom Button */}
+      {showScrollBottom && (
+        <Fab
+          color="primary"
+          size="medium"
+          onClick={scrollToBottom}
+          sx={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            zIndex: 1000,
+            bgcolor: '#2196F3',
+            '&:hover': {
+              bgcolor: '#1976D2',
+              transform: 'scale(1.1)'
+            },
+            transition: 'all 0.3s ease-in-out',
+            boxShadow: '0 4px 12px rgba(33, 150, 243, 0.4)'
+          }}
+          aria-label="scroll to bottom"
+        >
+          <Navigation sx={{ transform: 'rotate(90deg)' }} />
+        </Fab>
+      )}
     </Box>
   );
 }

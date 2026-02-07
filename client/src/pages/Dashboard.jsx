@@ -17,6 +17,8 @@ import {
   TableRow,
   Paper,
   CircularProgress,
+  Tabs,
+  Tab,
 } from "@mui/material";
 
 import UserService from "../services/UserService";
@@ -38,6 +40,7 @@ const Dashboard = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [fetchingUsers, setFetchingUsers] = useState(true);
+  const [activeRoleTab, setActiveRoleTab] = useState("admin");
 
   const token = AuthService.getToken?.() || null;
 
@@ -56,6 +59,19 @@ const Dashboard = () => {
 
     fetchUsers();
   }, []);
+
+  const roleTabs = [
+    { value: "admin", label: "Admin" },
+    { value: "tour-operator", label: "Tour Operator" },
+    { value: "driver", label: "Driver" },
+    { value: "customer", label: "Customer" },
+  ];
+
+  const countByRole = (role) => {
+    return users.filter((u) => (u.role_name || u.role) === role).length;
+  };
+
+  const filteredUsers = users.filter((u) => (u.role_name || u.role) === activeRoleTab);
 
   const handleOpen = () => {
     setError("");
@@ -139,6 +155,24 @@ const Dashboard = () => {
         <Header />
         <Container sx={{ mt: 4 }}>
           <Typography variant="h5" mb={2}>System Users</Typography>
+
+          <Box mb={2}>
+            <Tabs
+              value={activeRoleTab}
+              onChange={(e, v) => setActiveRoleTab(v)}
+              variant="scrollable"
+              scrollButtons
+              allowScrollButtonsMobile
+            >
+              {roleTabs.map((t) => (
+                <Tab
+                  key={t.value}
+                  value={t.value}
+                  label={`${t.label} (${countByRole(t.value)})`}
+                />)
+              )}
+            </Tabs>
+          </Box>
 
           <Box mb={3} display="flex" justifyContent="center">
             <Button
@@ -270,13 +304,13 @@ const Dashboard = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {users.map((user, index) => (
+                  {filteredUsers.map((user, index) => (
                     <TableRow key={index}>
                       <TableCell>
                         {user.first_name} {user.last_name}
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.role_name}</TableCell>
+                      <TableCell>{user.role_name || user.role}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

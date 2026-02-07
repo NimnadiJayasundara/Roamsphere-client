@@ -35,6 +35,7 @@ import TripCard from './TripCard';
 import TripScheduler from './TripScheduler';
 import TripRequestCard from './TripRequestCard';
 import TripDetailsModal from '../tripPages/AssignmentModel'; 
+import TripRouteMap from '../../components/trip/TripRouteMap';
 import Navbar from '../../components/common/Navbar'; 
 import Header from '../../components/common/Header'; 
 import TripServices from '../../services/TripServices';
@@ -62,6 +63,10 @@ function TripSchedule() {
   // Add state for trip details modal
   const [tripDetailsOpen, setTripDetailsOpen] = useState(false);
   const [selectedTripForDetails, setSelectedTripForDetails] = useState(null);
+  
+  // Add state for route map modal
+  const [routeMapOpen, setRouteMapOpen] = useState(false);
+  const [selectedTripForRoute, setSelectedTripForRoute] = useState(null);
 
   const tabs = [
     { 
@@ -356,6 +361,12 @@ function TripSchedule() {
     setTripDetailsOpen(true);
   };
 
+  // Add function to handle route view
+  const handleViewRoute = (trip) => {
+    setSelectedTripForRoute(trip);
+    setRouteMapOpen(true);
+  };
+
   const handleAssignTrip = async (request) => {
     // Ensure distance is calculated for the selected request
     if (!request.estimated_distance_km) {
@@ -436,7 +447,7 @@ function TripSchedule() {
     if (window.confirm('Are you sure you want to reject this request?')) {
       try {
         setLoading(true);
-        const response = await TripServices.rejectTripRequest(requestId, 'Rejected by admin');
+        const response = await TripServices.rejectTripRequest(requestId, 'Rejected by tour operator');
         
         if (response.success) {
           await fetchData();
@@ -819,6 +830,7 @@ function TripSchedule() {
                       <TripCard
                         trip={trip}
                         onViewDetails={() => handleTripClick(trip)}
+                        onViewRoute={handleViewRoute}
                         onEdit={(trip) => {
                           setEditingTrip(trip);
                           setSchedulerOpen(true);
@@ -885,6 +897,17 @@ function TripSchedule() {
             <KeyboardArrowUp />
           </Fab>
         )}
+
+        {/* Trip Route Map Modal */}
+        <TripRouteMap
+          open={routeMapOpen}
+          onClose={() => {
+            setRouteMapOpen(false);
+            setSelectedTripForRoute(null);
+          }}
+          trip={selectedTripForRoute}
+          isMobile={isMobile}
+        />
       </Box>
     </Box>
   );

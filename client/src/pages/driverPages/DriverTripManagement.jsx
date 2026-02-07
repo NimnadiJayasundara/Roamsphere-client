@@ -276,10 +276,20 @@ function DriverTripManagement() {
                           
                           <List dense>
                             <ListItem>
-                              <ListItemIcon><LocationOn color="primary" /></ListItemIcon>
+                              <ListItemIcon><LocationOn color="success" /></ListItemIcon>
                               <ListItemText 
-                                primary="Route"
-                                secondary={`${currentTrip.origin} → ${currentTrip.destination}`}
+                                primary="Start Location"
+                                secondary={currentTrip.origin}
+                                sx={{ '& .MuiListItemText-primary': { fontWeight: 'bold', color: '#2e7d32' } }}
+                              />
+                            </ListItem>
+                            
+                            <ListItem>
+                              <ListItemIcon><LocationOn color="error" /></ListItemIcon>
+                              <ListItemText 
+                                primary="Destination"
+                                secondary={currentTrip.destination}
+                                sx={{ '& .MuiListItemText-primary': { fontWeight: 'bold', color: '#d32f2f' } }}
                               />
                             </ListItem>
                             
@@ -380,9 +390,18 @@ function DriverTripManagement() {
                             primary={trip.title}
                             secondary={
                               <Box>
-                                <Typography variant="body2">
-                                  {trip.origin} → {trip.destination}
-                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                  <LocationOn sx={{ fontSize: 14, mr: 0.5, color: 'success.main' }} />
+                                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#2e7d32' }}>
+                                    From: {trip.origin}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                  <LocationOn sx={{ fontSize: 14, mr: 0.5, color: 'error.main' }} />
+                                  <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#d32f2f' }}>
+                                    To: {trip.destination}
+                                  </Typography>
+                                </Box>
                                 <Typography variant="caption" color="text.secondary">
                                   {formatDateTime(trip.preferred_date)} {trip.preferred_time}
                                 </Typography>

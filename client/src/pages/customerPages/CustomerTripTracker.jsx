@@ -227,10 +227,20 @@ function CustomerTripTracker() {
 
                 <List dense>
                   <ListItem>
-                    <ListItemIcon><LocationOn color="primary" /></ListItemIcon>
+                    <ListItemIcon><LocationOn color="success" /></ListItemIcon>
                     <ListItemText 
-                      primary="Route"
-                      secondary={`${trip.origin} → ${trip.destination}`}
+                      primary="Start Location"
+                      secondary={trip.origin}
+                      sx={{ '& .MuiListItemText-primary': { fontWeight: 'bold', color: '#2e7d32' } }}
+                    />
+                  </ListItem>
+                  
+                  <ListItem>
+                    <ListItemIcon><LocationOn color="error" /></ListItemIcon>
+                    <ListItemText 
+                      primary="Destination"
+                      secondary={trip.destination}
+                      sx={{ '& .MuiListItemText-primary': { fontWeight: 'bold', color: '#d32f2f' } }}
                     />
                   </ListItem>
                   
